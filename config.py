@@ -1,7 +1,13 @@
 from dotenv import load_dotenv
-import os
+import sys, os
 
-load_dotenv()
+# 打包成 exe 後，找 exe 同目錄的 .env；一般執行時找專案目錄的 .env
+if getattr(sys, 'frozen', False):
+    base_dir = os.path.dirname(sys.executable)
+else:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+load_dotenv(os.path.join(base_dir, '.env'))
 
 # ── AI Provider 設定（"claude" / "gemini" / "groq"）────────────────────
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq").lower()

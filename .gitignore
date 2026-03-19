@@ -1,5 +1,22 @@
+# 環境變數（絕對不能上傳）
 .env
+
+# Python 快取
 __pycache__/
 *.pyc
+*.pyo
+
+# 虛擬環境
 venv/
-.venv
+.venv/
+
+# PyInstaller 打包輸出
+dist/
+build/
+*.spec
+
+# Agent 產生的檔案
+agent_files/
+
+# VS Code 設定（選擇性，看你要不要共享設定）
+.vscode/
