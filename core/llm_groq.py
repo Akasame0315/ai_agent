@@ -10,7 +10,12 @@ import json
 
 client = Groq(api_key=GROQ_API_KEY)
 
-MODEL = "llama-3.3-70b-versatile"
+# 模型優先順序，第一個過載時自動換下一個
+MODELS = [
+    "moonshotai/kimi-k2-instruct",
+    "llama-3.3-70b-versatile", 
+    "llama3-70b-8192",
+]
 
 SYSTEM_PROMPT = """你是一個個人 AI Agent，運行在 Windows 電腦上，可以幫使用者完成各種任務。
 你有工具可以使用：查詢時間、讀寫檔案、網路搜尋、天氣查詢、開啟程式、控制音量、截圖、滑鼠鍵盤操作、執行指令。
@@ -96,14 +101,30 @@ def _to_groq_messages(conversation_history: list) -> list:
 
 
 def run(conversation_history: list) -> tuple[str, list]:
-    """執行一次 Groq ReAct 循環，最多 5 輪 tool call"""
+    """執行一次 Groq ReAct 循環，503 時自動切換備用模型"""
     groq_tools = _to_groq_tools()
 
+    for model in MODELS:
+        try:
+            return _run_with_model(model, groq_tools, conversation_history)
+            
+        except Exception as e:
+            if "503" in str(e) or "over capacity" in str(e):
+                print(f"[Groq] {model} 過載，切換備用模型...")
+                continue
+            raise e
+
+    return "❌ 所有模型目前都過載，請稍後再試", conversation_history
+
+
+def _run_with_model(model: str, groq_tools: list, conversation_history: list) -> tuple[str, list]:
+    print(f"[Groq] 使用模型：{model}")
+    
     for _ in range(5):
         messages = _to_groq_messages(conversation_history)
 
         response = client.chat.completions.create(
-            model=MODEL,
+            model=model,
             messages=messages,
             tools=groq_tools,
             tool_choice="auto",

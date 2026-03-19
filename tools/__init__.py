@@ -1,6 +1,7 @@
 import datetime
 import os
 import httpx
+from .apps import open_application, list_running_apps
 
 # ══════════════════════════════════════════════════════════════════════
 # Tool 定義（告訴 LLM 有哪些工具可以用）
@@ -369,28 +370,6 @@ def run_shell(command: str) -> str:
         return f"⏱ 指令超時（15秒）：{command}"
     except Exception as e:
         return f"❌ 執行失敗：{e}"
-
-# ── 應用程式控制 ──────────────────────────────────────────────────────
-def open_application(target: str) -> str:
-    import subprocess
-    try:
-        subprocess.Popen(target, shell=True)
-        return f"✅ 已開啟：{target}"
-    except Exception as e:
-        return f"❌ 開啟失敗：{e}"
-
-def list_running_apps(**_) -> str:
-    import psutil
-    try:
-        apps = set()
-        for proc in psutil.process_iter(["name"]):
-            name = proc.info["name"]
-            if name and not name.lower().endswith(("svchost.exe", "system", "idle")):
-                apps.add(name)
-        sorted_apps = sorted(apps)
-        return "🖥 執行中的程式：\n" + "\n".join(f"  - {a}" for a in sorted_apps[:40])
-    except Exception as e:
-        return f"❌ 查詢失敗：{e}"
 
 
 # ── 滑鼠控制 ──────────────────────────────────────────────────────────

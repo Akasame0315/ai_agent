@@ -33,7 +33,7 @@ BUILTIN_ALIASES = {
 }
 
 # 網址判斷用的域名後綴
-URL_SUFFIXES = {".com", ".gg", ".org", ".net", ".io", ".tw",
+URL_SUFFIXES = {".com", ".org", ".net", ".io", ".tw",
                 ".co", ".app", ".dev", ".ai", ".tv"}
 
 
@@ -156,14 +156,14 @@ def find_installed_apps(keyword: str) -> list[dict]:
 # Tool 實作
 # ══════════════════════════════════════════════════════════════════════
 
+# """
+# 智慧開啟程式或網址：
+# 1. 系統內建別名（記事本、小算盤…）
+# 2. 網址 → 瀏覽器
+# 3. 模糊比對已安裝程式
+# 4. 都找不到 → 回傳搜尋下載連結
+# """
 def open_application(target: str) -> str:
-    """
-    智慧開啟程式或網址：
-    1. 系統內建別名（記事本、小算盤…）
-    2. 網址 → 瀏覽器
-    3. 模糊比對已安裝程式
-    4. 都找不到 → 回傳搜尋下載連結
-    """
     # ── 1. 系統內建別名 ──────────────────────────────────────────────
     for alias, cmd in BUILTIN_ALIASES.items():
         if alias in target or target.lower() in cmd.lower():
@@ -186,15 +186,26 @@ def open_application(target: str) -> str:
     # ── 3. 模糊比對已安裝程式 ────────────────────────────────────────
     apps = find_installed_apps(target)
 
+    EXCLUDE_KEYWORDS = ["uninstall", "解除安裝", "remove", "uninst"]
+    filtered = [
+        a for a in apps
+        if not any(kw in a["name"].lower() for kw in EXCLUDE_KEYWORDS)
+    ]
+    # 過濾後如果還有結果就用過濾後的，否則用原始結果
+    apps = filtered if filtered else apps
+
     if apps:
         best = apps[0]
         launch_target = best["exe"] or best["name"]
+
+        print(f"[APP] 準備開啟：{best['name']} → {launch_target}")
+
         try:
-            subprocess.Popen(f'"{launch_target}"', shell=True)
-            return (
-                f"✅ 已開啟：{best['name']}\n"
-                f"   路徑：{launch_target}"
-            )
+            if launch_target.lower().endswith(".lnk"):
+                os.startfile(launch_target)
+            else:
+                subprocess.Popen(f'"{launch_target}"', shell=True)
+            return f"✅ 已開啟：{best['name']}"
         except Exception as e:
             return f"❌ 找到程式但開啟失敗：{best['name']}\n   錯誤：{e}"
 
@@ -202,11 +213,9 @@ def open_application(target: str) -> str:
     search_url = f"https://www.google.com/search?q={target}+official+download+site"
     return (
         f"❌ 電腦上找不到「{target}」\n\n"
-        f"可能未安裝，以下是官方下載搜尋連結：\n"
-        f"🔗 {search_url}\n\n"
-        f"（建議從官方網站下載以確保安全）"
+        f"可能未安裝，官方下載搜尋：\n"
+        f"🔗 {search_url}"
     )
-
 
 def search_installed_apps(keyword: str) -> str:
     """列出符合關鍵字的已安裝程式"""
