@@ -1,0 +1,10 @@
+anthropic
+python-dotenv
+python-telegram-bot==20.7
+httpx
+groq
+pyautogui
+psutil
+pillow
+pycaw
+comtypes
