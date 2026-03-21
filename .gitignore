@@ -20,3 +20,6 @@ agent_files/
 
 # VS Code 設定（選擇性，看你要不要共享設定）
 .vscode/
+
+memory_db/
+rag_db/

@@ -1,10 +1,26 @@
+# AI 模型
 anthropic
-python-dotenv
-python-telegram-bot>=21.0
-httpx
 groq
+
+# 本地模型 / API
+httpx
+
+# Telegram
+python-telegram-bot>=21.0
+
+# 環境變數
+python-dotenv
+
+# 記憶系統 + RAG
+chromadb
+sentence-transformers
+
+# PDF 支援（RAG 匯入 PDF 用）
+pypdf
+
+# 系統控制（Windows）
 pyautogui
 psutil
 pillow
-pycaw
-comtypes
+pycaw; sys_platform == "win32"
+comtypes; sys_platform == "win32"

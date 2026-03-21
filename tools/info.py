@@ -154,3 +154,53 @@ def list_files(**_) -> str:
     os.makedirs(FILES_DIR, exist_ok=True)
     files = os.listdir(FILES_DIR)
     return "📂 agent_files：\n" + "\n".join(f"  - {f}" for f in files) if files else "📂 資料夾是空的"
+
+
+# ── 記憶操作（讓使用者可以從 Telegram 管理記憶）──────────────────────
+def list_memories(**_) -> str:
+    try:
+        from core.memory import list_all_memories
+        return list_all_memories()
+    except Exception as e:
+        return f"❌ 記憶系統未啟動：{e}"
+
+def clear_memories(**_) -> str:
+    try:
+        from core.memory import clear_memories as _clear
+        return _clear()
+    except Exception as e:
+        return f"❌ 清除失敗：{e}"
+
+
+# ── RAG 知識庫操作 ────────────────────────────────────────────────────
+def import_document(file_path: str, source_name: str = "") -> str:
+    """匯入本機文件到知識庫（.txt / .md / .pdf）"""
+    try:
+        from core.rag import add_document
+        return add_document(file_path, source_name)
+    except Exception as e:
+        return f"❌ 匯入失敗：{e}"
+
+def import_text_to_knowledge(content: str, source_name: str) -> str:
+    """把一段文字直接加入知識庫"""
+    try:
+        from core.rag import add_text
+        return add_text(content, source_name)
+    except Exception as e:
+        return f"❌ 加入失敗：{e}"
+
+def list_knowledge_documents(**_) -> str:
+    """列出知識庫裡的所有文件"""
+    try:
+        from core.rag import list_documents
+        return list_documents()
+    except Exception as e:
+        return f"❌ 查詢失敗：{e}"
+
+def delete_knowledge_document(source_name: str) -> str:
+    """從知識庫刪除指定文件"""
+    try:
+        from core.rag import delete_document
+        return delete_document(source_name)
+    except Exception as e:
+        return f"❌ 刪除失敗：{e}"
