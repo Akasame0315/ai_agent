@@ -24,3 +24,9 @@ psutil
 pillow
 pycaw; sys_platform == "win32"
 comtypes; sys_platform == "win32"
+
+# Gmail API
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client

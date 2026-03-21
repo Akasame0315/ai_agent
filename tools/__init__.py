@@ -14,6 +14,8 @@ from tools.apps   import (open_application, search_installed_apps,
                            list_running_apps, close_application)
 from tools.system import (set_volume, take_screenshot,
                            mouse_action, keyboard_type, run_shell)
+from tools.gmail  import (check_inbox, read_email, send_email,
+                           reply_email, move_to_trash)
 
 # ══════════════════════════════════════════════════════════════════════
 # Tool 定義（告訴 LLM 有哪些工具）
@@ -193,6 +195,69 @@ TOOL_DEFINITIONS = [
         }
     },
 
+
+    # ── Gmail ─────────────────────────────────────────────────────────
+    {
+        "name": "check_inbox",
+        "description": "檢查 Gmail 收件匣，自動過濾廣告和垃圾信，只顯示重要信件",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "max_results": {"type": "integer", "description": "最多查幾封，預設 10"},
+                "unread_only": {"type": "boolean", "description": "只看未讀，預設 true"}
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "read_email",
+        "description": "讀取特定信件的完整內容，需要提供從 check_inbox 取得的信件 ID",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string", "description": "信件 ID（從 check_inbox 結果中取得）"}
+            },
+            "required": ["message_id"]
+        }
+    },
+    {
+        "name": "send_email",
+        "description": "寄送新的電子郵件",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to":      {"type": "string", "description": "收件人 email，多個用逗號分隔"},
+                "subject": {"type": "string", "description": "郵件主旨"},
+                "body":    {"type": "string", "description": "郵件內文"},
+                "cc":      {"type": "string", "description": "副本收件人 email（選填）"}
+            },
+            "required": ["to", "subject", "body"]
+        }
+    },
+    {
+        "name": "reply_email",
+        "description": "回覆某封信件，需要提供信件 ID 和回覆內容",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string", "description": "要回覆的信件 ID"},
+                "body":       {"type": "string", "description": "回覆內容"}
+            },
+            "required": ["message_id", "body"]
+        }
+    },
+    {
+        "name": "move_to_trash",
+        "description": "把指定信件移到垃圾桶",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string", "description": "要刪除的信件 ID"}
+            },
+            "required": ["message_id"]
+        }
+    },
+
     # ── Shell ─────────────────────────────────────────────────────────
     {
         "name": "run_shell",
@@ -303,6 +368,11 @@ TOOL_HANDLERS = {
     "mouse_action":        mouse_action,
     "keyboard_type":       keyboard_type,
     "run_shell":           run_shell,
+    "check_inbox":         check_inbox,
+    "read_email":          read_email,
+    "send_email":          send_email,
+    "reply_email":         reply_email,
+    "move_to_trash":       move_to_trash,
     "list_memories":       list_memories,
     "clear_memories":      clear_memories,
     "research_topic":           research_topic,

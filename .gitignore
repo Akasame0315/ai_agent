@@ -23,3 +23,6 @@ agent_files/
 
 memory_db/
 rag_db/
+
+gmail_credentials.json
+gmail_token.json
