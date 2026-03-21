@@ -8,7 +8,8 @@ from tools.info   import (get_current_time, get_system_info,
                            write_file, read_file, list_files,
                            list_memories, clear_memories,
                            import_document, import_text_to_knowledge,
-                           list_knowledge_documents, delete_knowledge_document)
+                           list_knowledge_documents, delete_knowledge_document,
+                           research_topic)
 from tools.apps   import (open_application, search_installed_apps,
                            list_running_apps, close_application)
 from tools.system import (set_volume, take_screenshot,
@@ -208,6 +209,24 @@ TOOL_DEFINITIONS = [
             "required": ["command"]
         }
     },
+    # ── 自動研究 ─────────────────────────────────────────────────────
+    {
+        "name": "research_topic",
+        "description": (
+            "給一個主題，自動上網搜尋多個角度並整理存入知識庫。"
+            "之後問相關問題時會自動參考這份研究資料。"
+            "例如：幫我研究 Python 非同步程式設計 / 幫我研究台北的美食推薦"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "要研究的主題"},
+                "depth": {"type": "integer", "description": "搜尋深度 1~5，越高資料越豐富但越慢，預設 3"}
+            },
+            "required": ["topic"]
+        }
+    },
+
     # ── 知識庫（RAG）─────────────────────────────────────────────────
     {
         "name": "import_document",
@@ -286,6 +305,7 @@ TOOL_HANDLERS = {
     "run_shell":           run_shell,
     "list_memories":       list_memories,
     "clear_memories":      clear_memories,
+    "research_topic":           research_topic,
     "import_document":          import_document,
     "import_text_to_knowledge": import_text_to_knowledge,
     "list_knowledge_documents": list_knowledge_documents,

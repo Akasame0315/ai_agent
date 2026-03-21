@@ -204,3 +204,110 @@ def delete_knowledge_document(source_name: str) -> str:
         return delete_document(source_name)
     except Exception as e:
         return f"❌ 刪除失敗：{e}"
+
+
+# ── 自動研究（網路搜尋 → 整理 → 存入知識庫）─────────────────────────
+def research_topic(topic: str, depth: int = 3) -> str:
+    """
+    給一個主題，自動上網搜尋多個角度，整理後存入知識庫。
+    depth: 搜尋幾個子問題（1~5），越高資料越豐富但越慢
+    """
+    import httpx, re
+
+    depth = max(1, min(5, int(depth)))
+
+    # ── 第一步：產生多角度搜尋關鍵字 ────────────────────────────────
+    # 根據主題自動展開成幾個搜尋面向
+    search_queries = _expand_queries(topic, depth)
+    print(f"[Research] 主題：{topic}，搜尋 {len(search_queries)} 個面向")
+
+    all_content = []
+
+    for i, query in enumerate(search_queries):
+        print(f"[Research] 搜尋 {i+1}/{len(search_queries)}：{query}")
+
+        # 用 DuckDuckGo 搜尋
+        raw = _ddg_search_raw(query)
+        if raw:
+            all_content.append(f"## {query}\n{raw}")
+
+    if not all_content:
+        return f"❌ 搜尋「{topic}」失敗，找不到任何資料"
+
+    # ── 第二步：整理成一份完整內容存進知識庫 ────────────────────────
+    combined = f"# {topic}\n\n" + "\n\n".join(all_content)
+
+    try:
+        from core.rag import add_text
+        result = add_text(combined, source_name=f"研究：{topic}")
+    except Exception as e:
+        return f"❌ 存入知識庫失敗：{e}"
+
+    return (
+        f"✅ 已完成「{topic}」的自動研究\n"
+        f"   搜尋了 {len(search_queries)} 個面向\n"
+        f"   收集了 {len(combined)} 字元的資料\n"
+        f"   已存入知識庫，之後問相關問題會自動參考"
+    )
+
+
+def _expand_queries(topic: str, depth: int) -> list[str]:
+    """把一個主題展開成多個搜尋角度"""
+    base_templates = [
+        "{topic}",
+        "{topic} 入門介紹",
+        "{topic} 最新資訊",
+        "{topic} 教學攻略",
+        "{topic} 常見問題",
+    ]
+    queries = []
+    for t in base_templates[:depth]:
+        queries.append(t.format(topic=topic))
+    return queries
+
+
+def _ddg_search_raw(query: str) -> str:
+    """搜尋 DuckDuckGo，回傳純文字摘要"""
+    import httpx, re
+
+    try:
+        # 先試 Instant Answer API
+        resp = httpx.get(
+            "https://api.duckduckgo.com/",
+            params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
+            timeout=10
+        )
+        data  = resp.json()
+        parts = []
+
+        if data.get("AbstractText"):
+            parts.append(data["AbstractText"])
+
+        for topic in data.get("RelatedTopics", [])[:5]:
+            if isinstance(topic, dict) and topic.get("Text"):
+                parts.append(topic["Text"])
+
+        if parts:
+            return "\n".join(parts)
+
+        # 備用：HTML 搜尋
+        resp2 = httpx.get(
+            "https://html.duckduckgo.com/html/",
+            params={"q": query},
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=10,
+            follow_redirects=True
+        )
+        titles   = re.findall(r'class="result__a"[^>]*>(.*?)</a>', resp2.text)
+        snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)</span>', resp2.text)
+        lines    = []
+        for i, title in enumerate(titles[:5]):
+            t = re.sub(r'<[^>]+>', '', title).strip()
+            s = re.sub(r'<[^>]+>', '', snippets[i]).strip() if i < len(snippets) else ""
+            if t or s:
+                lines.append(f"{t}：{s}")
+        return "\n".join(lines)
+
+    except Exception as e:
+        print(f"[Research] 搜尋失敗：{e}")
+        return ""
