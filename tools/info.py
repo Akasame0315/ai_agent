@@ -311,3 +311,43 @@ def _ddg_search_raw(query: str) -> str:
     except Exception as e:
         print(f"[Research] 搜尋失敗：{e}")
         return ""
+
+
+# ── 個人化設定 ────────────────────────────────────────────────────────
+def get_persona(**_) -> str:
+    """查看目前的個人化設定"""
+    try:
+        from core.persona import load
+        p = load()
+        lines = ["👤 目前個人化設定：\n"]
+        lines.append(f"  稱呼：{p.get('name', '老闆')}")
+        lines.append(f"  城市：{p.get('city', '（未設定）')}")
+        lines.append(f"  風格：{p.get('style', '')}")
+        lines.append(f"  語言：{p.get('language', '繁體中文')}")
+        extra = p.get("extra", [])
+        if extra:
+            lines.append(f"  額外指示：{', '.join(extra)}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"❌ 讀取設定失敗：{e}"
+
+
+def update_persona(key: str, value: str) -> str:
+    """更新個人化設定（name / city / style / language）"""
+    try:
+        from core.persona import update
+        return update(key, value)
+    except Exception as e:
+        return f"❌ 更新失敗：{e}"
+
+
+def add_persona_instruction(instruction: str) -> str:
+    """新增額外指示，例如「回覆要簡短」"""
+    try:
+        from core.persona import load, save
+        p = load()
+        p["extra"].append(instruction)
+        save(p)
+        return f"✅ 已新增指示：{instruction}"
+    except Exception as e:
+        return f"❌ 新增失敗：{e}"

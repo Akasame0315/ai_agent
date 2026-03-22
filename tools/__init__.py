@@ -15,7 +15,8 @@ from tools.info    import (get_current_time, get_system_info,
                             list_memories, clear_memories,
                             import_document, import_text_to_knowledge,
                             list_knowledge_documents, delete_knowledge_document,
-                            research_topic)
+                            research_topic,
+                            get_persona, update_persona, add_persona_instruction)
 from tools.apps    import (open_application, search_installed_apps,
                             list_running_apps, close_application)
 from tools.system  import (set_volume, take_screenshot,
@@ -408,6 +409,36 @@ TOOL_DEFINITIONS = [
         }
     },
 
+    # ── 個人化設定 ────────────────────────────────────────────────────
+    {
+        "name": "get_persona",
+        "description": "查看目前的個人化設定（稱呼、城市、語氣等）",
+        "input_schema": {"type": "object", "properties": {}, "required": []}
+    },
+    {
+        "name": "update_persona",
+        "description": "更新個人化設定，key 可以是 name（稱呼）/ city（城市）/ style（風格）/ language（語言）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "key":   {"type": "string", "description": "設定項目：name / city / style / language"},
+                "value": {"type": "string", "description": "新的設定值"}
+            },
+            "required": ["key", "value"]
+        }
+    },
+    {
+        "name": "add_persona_instruction",
+        "description": "新增額外的行為指示，例如「回覆要簡短」、「每次都問我需不需要記錄」",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "instruction": {"type": "string", "description": "要新增的指示內容"}
+            },
+            "required": ["instruction"]
+        }
+    },
+
     # ── 記憶 ──────────────────────────────────────────────────────────
     {
         "name": "list_memories",
@@ -491,6 +522,9 @@ TOOL_HANDLERS = {
     "import_text_to_knowledge":  import_text_to_knowledge,
     "list_knowledge_documents":  list_knowledge_documents,
     "delete_knowledge_document": delete_knowledge_document,
+    "get_persona":               get_persona,
+    "update_persona":            update_persona,
+    "add_persona_instruction":   add_persona_instruction,
     "list_memories":             list_memories,
     "clear_memories":            clear_memories,
 }

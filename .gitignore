@@ -1,6 +1,9 @@
 # 環境變數（絕對不能上傳）
 .env
 
+# 個人化設定
+persona.json
+
 # Python 快取
 __pycache__/
 *.pyc
@@ -21,8 +24,10 @@ agent_files/
 # VS Code 設定（選擇性，看你要不要共享設定）
 .vscode/
 
+# 記憶和知識庫
 memory_db/
 rag_db/
 
+# Gmail 授權
 gmail_credentials.json
 gmail_token.json

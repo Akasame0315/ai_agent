@@ -2,8 +2,7 @@
 Telegram Bot 介面
 路徑：channels/telegram_bot.py
 
-啟動時同時跑 Heartbeat 排程器。
-每個使用者有獨立的對話歷史（存在記憶體，重啟後清空）。
+改進：使用 run_agent_async，LLM 在背景 thread 跑，不阻塞 event loop。
 """
 from telegram import Update # type: ignore
 from telegram.ext import ( # type: ignore
@@ -11,9 +10,8 @@ from telegram.ext import ( # type: ignore
     CommandHandler, filters, ContextTypes
 )
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USER_ID
-from core.agent import run_agent
+from core.agent import run_agent_async
 
-# 每個 user_id 對應自己的對話歷史
 conversation_histories: dict[int, list] = {}
 
 
@@ -26,16 +24,24 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id):
         await update.message.reply_text("⛔ 你沒有使用權限")
         return
+    from config import LLM_PROVIDER, CLOUD_PROVIDER, OLLAMA_MODEL
+    mode = (
+        f"自動路由（敏感 → Ollama，一般 → {CLOUD_PROVIDER}）"
+        if LLM_PROVIDER == "auto"
+        else LLM_PROVIDER
+    )
     await update.message.reply_text(
-        "👋 Agent 已啟動！\n\n"
-        "📅 排程任務：\n"
-        "  • 每天 10:00 早安推播（天氣+信件+行程）\n"
-        "  • 每天 22:00 晚安回顧\n\n"
-        "指令：\n"
-        "  /clear — 清除對話記憶\n"
-        "  /test_morning — 立即測試早安推播\n"
-        "  /test_evening — 立即測試晚安推播\n"
-        "  /schedule — 查看排程狀態"
+        f"👋 Agent 已啟動！\n\n"
+        f"🤖 模型模式：{mode}\n"
+        f"🏠 本地模型：{OLLAMA_MODEL}\n\n"
+        f"📅 排程：\n"
+        f"  • 每天 10:00 早安推播\n"
+        f"  • 每天 22:00 晚安回顧\n\n"
+        f"指令：\n"
+        f"  /clear         — 清除對話記憶\n"
+        f"  /status        — 查看目前模型狀態\n"
+        f"  /test_morning  — 測試早安推播\n"
+        f"  /test_evening  — 測試晚安推播"
     )
 
 
@@ -47,7 +53,37 @@ async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🗑️ 對話記憶已清除")
 
 
-# ── /test_morning（立即觸發早安推播，方便測試）────────────────────────
+# ── /status ───────────────────────────────────────────────────────────
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id):
+        return
+    from config import LLM_PROVIDER, CLOUD_PROVIDER, OLLAMA_MODEL, OLLAMA_BASE_URL
+    import httpx # type: ignore
+
+    # 檢查 Ollama 是否在線
+    ollama_status = "❌ 離線"
+    try:
+        r = httpx.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=3)
+        if r.status_code == 200:
+            models = [m["name"] for m in r.json().get("models", [])]
+            ollama_status = f"✅ 在線（{', '.join(models[:3])}）"
+    except Exception:
+        pass
+
+    lines = [
+        "📊 目前狀態\n",
+        f"模式：{LLM_PROVIDER}",
+    ]
+    if LLM_PROVIDER == "auto":
+        lines.append(f"雲端模型：{CLOUD_PROVIDER}")
+    lines += [
+        f"本地模型：{OLLAMA_MODEL}",
+        f"Ollama：{ollama_status}",
+    ]
+    await update.message.reply_text("\n".join(lines))
+
+
+# ── /test_morning ─────────────────────────────────────────────────────
 async def cmd_test_morning(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id):
         return
@@ -64,18 +100,17 @@ async def cmd_test_evening(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await evening_heartbeat()
 
 
-# ── /schedule（查看排程狀態）─────────────────────────────────────────
-async def cmd_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ── /start_ollama ─────────────────────────────────────────────────────
+async def cmd_start_ollama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed(update.effective_user.id):
         return
-    from scheduler.heartbeat import create_scheduler
-    import datetime
-    lines = ["⏰ 排程狀態：\n"]
-    lines.append("  • 早安推播：每天 10:00")
-    lines.append("  • 晚安推播：每天 22:00")
-    now = datetime.datetime.now().strftime("%H:%M")
-    lines.append(f"\n現在時間：{now}")
-    await update.message.reply_text("\n".join(lines))
+    await update.message.reply_text("⏳ 嘗試啟動 Ollama...")
+    from core.llm_ollama import _try_start_ollama
+    ok = await asyncio.get_event_loop().run_in_executor(None, _try_start_ollama) # type: ignore
+    if ok:
+        await update.message.reply_text("✅ Ollama 已啟動")
+    else:
+        await update.message.reply_text("❌ 啟動失敗，請手動開啟 Ollama")
 
 
 # ── 一般訊息處理 ───────────────────────────────────────────────────────
@@ -90,37 +125,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ 思考中...")
 
     history = conversation_histories.get(user_id, [])
-    reply, updated_history = run_agent(user_text, history)
 
-    # 只保留最近 40 輪（避免無限增長）
+    # 非同步執行，不阻塞 event loop
+    reply, updated_history = await run_agent_async(user_text, history)
+
     conversation_histories[user_id] = updated_history[-40:]
 
-    # 超過 4000 字自動切段
     for i in range(0, len(reply), 4000):
         await update.message.reply_text(reply[i:i+4000])
 
 
-# ── 啟動 Bot + 排程器 ─────────────────────────────────────────────────
+# ── 啟動 ──────────────────────────────────────────────────────────────
 def start_bot():
     print("[Telegram Bot] 啟動中...")
 
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # 指令 handlers
     app.add_handler(CommandHandler("start",        cmd_start))
     app.add_handler(CommandHandler("clear",        cmd_clear))
+    app.add_handler(CommandHandler("status",       cmd_status))
     app.add_handler(CommandHandler("test_morning", cmd_test_morning))
     app.add_handler(CommandHandler("test_evening", cmd_test_evening))
-    app.add_handler(CommandHandler("schedule",     cmd_schedule))
-
-    # 一般訊息
+    app.add_handler(CommandHandler("start_ollama", cmd_start_ollama))
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND, handle_message
     ))
 
-# ── 啟動排程器（等 event loop 起來後再啟動）──────────────────────
     from scheduler.heartbeat import create_scheduler, init as heartbeat_init
-
     heartbeat_init(app.bot, TELEGRAM_ALLOWED_USER_ID)
     scheduler = create_scheduler()
 
