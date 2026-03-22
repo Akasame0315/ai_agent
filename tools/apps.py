@@ -170,20 +170,27 @@ def open_application(target: str) -> str:
             subprocess.Popen(cmd, shell=True)
             return f"✅ 已開啟：{alias}"
 
-    # ── 2. 網址判斷 ──────────────────────────────────────────────────
     t = target.strip()
+    # ── 2. 先判斷是不是本機檔案路徑 ──────────────────────────────────────────────────
+    if os.path.exists(t):
+        try:
+            os.startfile(t)
+            return f"✅ 已開啟檔案：{os.path.basename(t)}"
+        except Exception as e:
+            return f"❌ 開啟檔案失敗：{e}"
+        
+    # ── 3. 網址判斷 ──────────────────────────────────────────────────
     is_url = (
         t.startswith("http://") or
         t.startswith("https://") or
-        any(t.lower().endswith(s) for s in URL_SUFFIXES) or
-        ("." in t and " " not in t and len(t.split(".")) >= 2)
+        any(t.lower().endswith(s) for s in URL_SUFFIXES)
     )
     if is_url:
         url = t if t.startswith("http") else "https://" + t
         webbrowser.open(url)
         return f"✅ 已用瀏覽器開啟：{url}"
 
-    # ── 3. 模糊比對已安裝程式 ────────────────────────────────────────
+    # ── 4. 模糊比對已安裝程式 ────────────────────────────────────────
     apps = find_installed_apps(target)
 
     EXCLUDE_KEYWORDS = ["uninstall", "解除安裝", "remove", "uninst"]
@@ -209,7 +216,7 @@ def open_application(target: str) -> str:
         except Exception as e:
             return f"❌ 找到程式但開啟失敗：{best['name']}\n   錯誤：{e}"
 
-    # ── 4. 找不到 → 回傳下載搜尋建議 ────────────────────────────────
+    # ── 5. 找不到 → 回傳下載搜尋建議 ────────────────────────────────
     search_url = f"https://www.google.com/search?q={target}+official+download+site"
     return (
         f"❌ 電腦上找不到「{target}」\n\n"

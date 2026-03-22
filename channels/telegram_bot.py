@@ -113,22 +113,63 @@ async def cmd_start_ollama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ 啟動失敗，請手動開啟 Ollama")
 
 
+# ── 工具歷史清理 ─────────────────────────────────────────────────────
+def _strip_tool_history(history: list) -> list:
+    """
+    切換模型時，保留純文字對話，移除 tool_use / tool_result。
+    這樣新模型知道對話脈絡，但不會嘗試呼叫不存在的工具。
+    """
+    cleaned = []
+    for msg in history:
+        content = msg["content"]
+        if isinstance(content, str):
+            cleaned.append(msg)
+        elif isinstance(content, list):
+            # 只保留 type=text 的部分
+            text_parts = [
+                b for b in content
+                if isinstance(b, dict) and b.get("type") == "text"
+            ]
+            if text_parts:
+                # 合併成純文字訊息
+                combined = " ".join(b.get("text", "") for b in text_parts)
+                if combined.strip():
+                    cleaned.append({
+                        "role":    msg["role"],
+                        "content": combined
+                    })
+    return cleaned
+
+
 # ── 一般訊息處理 ───────────────────────────────────────────────────────
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user_id   = update.effective_user.id
+    user_text = update.message.text
 
     if not is_allowed(user_id):
         await update.message.reply_text("⛔ 你沒有使用權限")
         return
 
-    user_text = update.message.text
-    await update.message.reply_text("⏳ 思考中...")
+    # 判斷這次用哪個模型
+    from config import LLM_PROVIDER
+    if LLM_PROVIDER == "auto":
+        from core.router import route
+        current_provider, _ = route(user_text)
+    else:
+        current_provider = LLM_PROVIDER
 
     history = conversation_histories.get(user_id, [])
 
-    # 非同步執行，不阻塞 event loop
-    reply, updated_history = await run_agent_async(user_text, history)
+    # 如果模型切換了，清除對話歷史避免工具衝突
+    last_provider = context.user_data.get("last_provider")
+    if last_provider and last_provider != current_provider:
+        print(f"[Bot] 模型切換 {last_provider} → {current_provider}")
+        # 不直接清空，改成只保留純文字摘要（去掉 tool_use / tool_result）
+        history = _strip_tool_history(history)
+    context.user_data["last_provider"] = current_provider
 
+    await update.message.reply_text("⏳ 思考中...")
+    reply, updated_history = await run_agent_async(user_text, history)
     conversation_histories[user_id] = updated_history[-40:]
 
     for i in range(0, len(reply), 4000):
@@ -160,6 +201,32 @@ def start_bot():
         print("[Scheduler] 排程器已啟動")
         print("[Scheduler]   • 早安推播：每天 10:00")
         print("[Scheduler]   • 晚安推播：每天 22:00")
+    
+        # 啟動時推播通知
+        from config import LLM_PROVIDER, CLOUD_PROVIDER, OLLAMA_MODEL
+        mode = (
+            f"自動路由（敏感 → Ollama {OLLAMA_MODEL}，一般 → {CLOUD_PROVIDER}）"
+            if LLM_PROVIDER == "auto"
+            else LLM_PROVIDER
+        )
+        startup_msg = (
+            f"✅ Agent 已上線！\n\n"
+            f"🤖 模型模式：{mode}\n\n"
+            f"📋 可用指令：\n"
+            f"  /start         — 查看說明\n"
+            f"  /status        — 查看模型狀態\n"
+            f"  /clear         — 清除對話記憶\n"
+            f"  /test_morning  — 測試早安推播\n"
+            f"  /test_evening  — 測試晚安推播\n\n"
+            f"💬 直接傳訊息就可以開始使用！"
+        )
+        try:
+            await application.bot.send_message(
+                chat_id=TELEGRAM_ALLOWED_USER_ID,
+                text=startup_msg
+            )
+        except Exception as e:
+            print(f"[Bot] 啟動通知發送失敗：{e}")
 
     async def on_shutdown(application):
         scheduler.shutdown()

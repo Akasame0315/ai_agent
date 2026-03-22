@@ -22,7 +22,8 @@ from tools.apps    import (open_application, search_installed_apps,
 from tools.system  import (set_volume, take_screenshot,
                             mouse_action, keyboard_type, run_shell)
 from tools.gmail   import (check_inbox, read_email, send_email,
-                            reply_email, move_to_trash)
+                            reply_email, move_to_trash, 
+                          mark_as_read, mark_as_unread)
 from tools.browser import (browser_open, browser_read, browser_click,
                             browser_fill, browser_screenshot,
                             browser_search, browser_close,
@@ -352,6 +353,28 @@ TOOL_DEFINITIONS = [
             "required": ["message_id"]
         }
     },
+    {
+        "name": "mark_as_read",
+        "description": "把指定信件標記為已讀",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string", "description": "信件 ID"}
+            },
+            "required": ["message_id"]
+        }
+    },
+    {
+        "name": "mark_as_unread",
+        "description": "把指定信件標記為未讀",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message_id": {"type": "string", "description": "信件 ID"}
+            },
+            "required": ["message_id"]
+        }
+    },
 
     # ── 自動研究 ─────────────────────────────────────────────────────
     {
@@ -456,7 +479,7 @@ TOOL_DEFINITIONS = [
 # 敏感工具清單（雲端模型會被移除）
 # ══════════════════════════════════════════════════════════════════════
 PRIVATE_TOOLS = {
-    "check_inbox", "read_email", "send_email", "reply_email", "move_to_trash",
+    "check_inbox", "read_email", "send_email", "reply_email", "move_to_trash","mark_as_read", "mark_as_unread",
     "list_memories", "clear_memories",
     "import_document", "import_text_to_knowledge",
     "list_knowledge_documents", "delete_knowledge_document",
@@ -517,6 +540,8 @@ TOOL_HANDLERS = {
     "send_email":                send_email,
     "reply_email":               reply_email,
     "move_to_trash":             move_to_trash,
+    "mark_as_read":              mark_as_read,
+    "mark_as_unread":            mark_as_unread,
     "research_topic":            research_topic,
     "import_document":           import_document,
     "import_text_to_knowledge":  import_text_to_knowledge,

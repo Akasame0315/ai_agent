@@ -327,3 +327,29 @@ def move_to_trash(message_id: str) -> str:
         return f"🗑️ 已將信件移到垃圾桶"
     except Exception as e:
         return f"❌ 移動失敗：{e}"
+
+
+def mark_as_read(message_id: str) -> str:
+    """把指定信件標記為已讀"""
+    try:
+        service = _get_service()
+        service.users().messages().modify(
+            userId="me", id=message_id,
+            body={"removeLabelIds": ["UNREAD"]}
+        ).execute()
+        return f"✅ 已標記為已讀：{message_id}"
+    except Exception as e:
+        return f"❌ 標記失敗：{e}"
+
+
+def mark_as_unread(message_id: str) -> str:
+    """把指定信件標記為未讀"""
+    try:
+        service = _get_service()
+        service.users().messages().modify(
+            userId="me", id=message_id,
+            body={"addLabelIds": ["UNREAD"]}
+        ).execute()
+        return f"✅ 已標記為未讀：{message_id}"
+    except Exception as e:
+        return f"❌ 標記失敗：{e}"

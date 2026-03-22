@@ -59,7 +59,8 @@ def take_screenshot(filename: str = "") -> str:
     path = os.path.join(FILES_DIR, filename)
     try:
         pyautogui.screenshot(path)
-        return f"✅ 截圖已儲存：{filename}"
+        abs_path = os.path.abspath(path)
+        return f"✅ 截圖已儲存：{filename}\n完整路徑：{abs_path}"
     except Exception as e:
         return f"❌ 截圖失敗：{e}"
 
