@@ -2,7 +2,7 @@
 資訊查詢工具：時間、天氣、網路搜尋、系統資訊
 """
 import datetime
-import httpx
+import httpx # type: ignore
 import os
 import re
 
@@ -26,7 +26,7 @@ def get_system_info(**_) -> str:
         f"💾 磁碟（C:\\）：已用 {used>>30} GB / 共 {total>>30} GB（剩 {free>>30} GB）",
     ]
     try:
-        import psutil
+        import psutil # type: ignore
         ram = psutil.virtual_memory()
         cpu = psutil.cpu_percent(interval=1)
         lines.append(f"🧠 記憶體：已用 {ram.used>>20} MB / 共 {ram.total>>20} MB（{ram.percent}%）")
@@ -212,7 +212,7 @@ def research_topic(topic: str, depth: int = 3) -> str:
     給一個主題，自動上網搜尋多個角度，整理後存入知識庫。
     depth: 搜尋幾個子問題（1~5），越高資料越豐富但越慢
     """
-    import httpx, re
+    import httpx, re # type: ignore
 
     depth = max(1, min(5, int(depth)))
 
@@ -268,7 +268,7 @@ def _expand_queries(topic: str, depth: int) -> list[str]:
 
 def _ddg_search_raw(query: str) -> str:
     """搜尋 DuckDuckGo，回傳純文字摘要"""
-    import httpx, re
+    import httpx, re # type: ignore
 
     try:
         # 先試 Instant Answer API

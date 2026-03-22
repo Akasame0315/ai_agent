@@ -11,8 +11,8 @@ import os
 import re
 import hashlib
 import datetime
-import chromadb
-from chromadb.utils import embedding_functions
+import chromadb # type: ignore
+from chromadb.utils import embedding_functions # type: ignore
 
 # ── 初始化 ChromaDB（和記憶系統分開，存在 rag_db 資料夾）────────────
 _client = chromadb.PersistentClient(path="rag_db")

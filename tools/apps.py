@@ -241,7 +241,7 @@ def search_installed_apps(keyword: str) -> str:
 def list_running_apps() -> str:
     """列出目前執行中有視窗的應用程式"""
     try:
-        import psutil
+        import psutil # type: ignore
         apps = []
         for proc in psutil.process_iter(["name", "pid"]):
             try:

@@ -1,7 +1,7 @@
 """
 Claude (Anthropic) 的 LLM 實作
 """
-import anthropic
+import anthropic # type: ignore
 from config import ANTHROPIC_API_KEY
 from tools import TOOL_DEFINITIONS, execute_tool
 

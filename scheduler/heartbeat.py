@@ -8,8 +8,8 @@ Heartbeat 排程系統
 """
 import asyncio
 import datetime
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron      import CronTrigger
+from apscheduler.schedulers.asyncio import AsyncIOScheduler # type: ignore
+from apscheduler.triggers.cron      import CronTrigger # type: ignore
 
 # ── 全域變數（由 telegram_bot.py 注入）────────────────────────────────
 _bot     = None   # telegram.Bot 實例

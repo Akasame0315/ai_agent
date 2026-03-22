@@ -2,7 +2,7 @@
 設定檔
 路徑：config.py
 """
-from dotenv import load_dotenv
+from dotenv import load_dotenv # type: ignore
 import os
 
 load_dotenv()

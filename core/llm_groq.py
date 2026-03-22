@@ -3,7 +3,7 @@ Groq LLM 實作
 路徑：core/llm_groq.py
 """
 import json
-from groq import Groq
+from groq import Groq # type: ignore
 from config import GROQ_API_KEY
 from tools import _get_safe_tools, execute_tool
 

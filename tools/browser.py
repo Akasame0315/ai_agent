@@ -41,7 +41,7 @@ async def _get_page():
     global _playwright, _browser, _page
 
     if _page is None or _page.is_closed():
-        from playwright.async_api import async_playwright
+        from playwright.async_api import async_playwright # type: ignore
         _playwright = await async_playwright().start()
         _browser    = await _playwright.chromium.launch(
             headless=False,        # False = 看得到瀏覽器視窗，方便觀察

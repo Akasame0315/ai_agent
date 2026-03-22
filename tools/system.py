@@ -12,8 +12,8 @@ FILES_DIR = "agent_files"
 # ── 音量控制 ──────────────────────────────────────────────────────────
 def set_volume(action: str, value: int = 10) -> str:
     try:
-        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-        from comtypes import CLSCTX_ALL
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume # type: ignore
+        from comtypes import CLSCTX_ALL # type: ignore
         import ctypes
 
         devices   = AudioUtilities.GetSpeakers()
@@ -52,7 +52,7 @@ def set_volume(action: str, value: int = 10) -> str:
 
 # ── 截圖 ──────────────────────────────────────────────────────────────
 def take_screenshot(filename: str = "") -> str:
-    import pyautogui
+    import pyautogui # type: ignore
     os.makedirs(FILES_DIR, exist_ok=True)
     if not filename:
         filename = f"screenshot_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
@@ -67,7 +67,7 @@ def take_screenshot(filename: str = "") -> str:
 
 # ── 滑鼠控制 ──────────────────────────────────────────────────────────
 def mouse_action(action: str, x: int, y: int) -> str:
-    import pyautogui
+    import pyautogui # type: ignore
     pyautogui.FAILSAFE = True
     try:
         if action == "move":
@@ -92,7 +92,7 @@ def mouse_action(action: str, x: int, y: int) -> str:
 
 # ── 鍵盤輸入 ──────────────────────────────────────────────────────────
 def keyboard_type(text: str = "", hotkey: str = "", interval: float = 0.05) -> str:
-    import pyautogui
+    import pyautogui # type: ignore
     import time
     try:
         time.sleep(0.3)
