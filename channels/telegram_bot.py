@@ -5,8 +5,8 @@ Telegram Bot 介面
 啟動時同時跑 Heartbeat 排程器。
 每個使用者有獨立的對話歷史（存在記憶體，重啟後清空）。
 """
-from telegram import Update
-from telegram.ext import (
+from telegram import Update # type: ignore
+from telegram.ext import ( # type: ignore
     ApplicationBuilder, MessageHandler,
     CommandHandler, filters, ContextTypes
 )

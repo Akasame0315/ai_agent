@@ -1,21 +1,31 @@
 """
 工具總入口：統一定義 + 統一呼叫
-所有工具實作分散在子模組，這裡只做彙整。
+路徑：tools/__init__.py
+
+所有工具實作分散在子模組，這裡負責：
+1. 彙整所有工具的 import
+2. 定義 TOOL_DEFINITIONS（告訴 LLM 有哪些工具）
+3. 隱私過濾：雲端模型自動移除敏感工具
+4. execute_tool：統一呼叫入口
 """
 
-from tools.info   import (get_current_time, get_system_info,
-                           get_weather, web_search,
-                           write_file, read_file, list_files,
-                           list_memories, clear_memories,
-                           import_document, import_text_to_knowledge,
-                           list_knowledge_documents, delete_knowledge_document,
-                           research_topic)
-from tools.apps   import (open_application, search_installed_apps,
-                           list_running_apps, close_application)
-from tools.system import (set_volume, take_screenshot,
-                           mouse_action, keyboard_type, run_shell)
-from tools.gmail  import (check_inbox, read_email, send_email,
-                           reply_email, move_to_trash)
+from tools.info    import (get_current_time, get_system_info,
+                            get_weather, web_search,
+                            write_file, read_file, list_files,
+                            list_memories, clear_memories,
+                            import_document, import_text_to_knowledge,
+                            list_knowledge_documents, delete_knowledge_document,
+                            research_topic)
+from tools.apps    import (open_application, search_installed_apps,
+                            list_running_apps, close_application)
+from tools.system  import (set_volume, take_screenshot,
+                            mouse_action, keyboard_type, run_shell)
+from tools.gmail   import (check_inbox, read_email, send_email,
+                            reply_email, move_to_trash)
+from tools.browser import (browser_open, browser_read, browser_click,
+                            browser_fill, browser_screenshot,
+                            browser_search, browser_close,
+                            browser_current_url)
 
 # ══════════════════════════════════════════════════════════════════════
 # Tool 定義（告訴 LLM 有哪些工具）
@@ -96,9 +106,8 @@ TOOL_DEFINITIONS = [
         "name": "open_application",
         "description": (
             "開啟電腦上的程式或網址。"
-            "支援模糊名稱（打『chrome』會找到 Google Chrome）。"
+            "支援模糊名稱（打 chrome 會找到 Google Chrome）。"
             "如果電腦沒安裝，會回傳官方下載連結。"
-            "也可以直接輸入網址（例如 op.gg、youtube.com）用瀏覽器開啟。"
         ),
         "input_schema": {
             "type": "object",
@@ -130,7 +139,7 @@ TOOL_DEFINITIONS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "name": {"type": "string", "description": "要關閉的程式名稱，例如：notepad、chrome"}
+                "name": {"type": "string", "description": "要關閉的程式名稱"}
             },
             "required": ["name"]
         }
@@ -145,7 +154,7 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "action": {
                     "type": "string",
-                    "description": "動作：set（設定）/ up（調大）/ down（調小）/ mute / unmute / get（查詢）"
+                    "description": "動作：set / up / down / mute / unmute / get"
                 },
                 "value": {
                     "type": "integer",
@@ -195,11 +204,96 @@ TOOL_DEFINITIONS = [
         }
     },
 
+    # ── Shell ─────────────────────────────────────────────────────────
+    {
+        "name": "run_shell",
+        "description": "執行 shell / PowerShell 指令。危險指令會被自動拒絕。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string", "description": "要執行的指令"}
+            },
+            "required": ["command"]
+        }
+    },
+
+    # ── 瀏覽器控制 ───────────────────────────────────────────────────
+    {
+        "name": "browser_open",
+        "description": "用瀏覽器開啟指定網址",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "要開啟的網址"}
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "browser_read",
+        "description": "讀取目前瀏覽器網頁的文字內容",
+        "input_schema": {"type": "object", "properties": {}, "required": []}
+    },
+    {
+        "name": "browser_search",
+        "description": "用真實瀏覽器搜尋，結果比 API 搜尋更完整",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "搜尋關鍵字"}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "browser_click",
+        "description": "點擊網頁元素，可用 CSS selector 或 text=文字",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "selector": {"type": "string", "description": "CSS selector 或 text=按鈕文字"}
+            },
+            "required": ["selector"]
+        }
+    },
+    {
+        "name": "browser_fill",
+        "description": "在網頁輸入框填入文字",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "selector": {"type": "string", "description": "輸入框的 CSS selector"},
+                "value":    {"type": "string", "description": "要填入的文字"}
+            },
+            "required": ["selector", "value"]
+        }
+    },
+    {
+        "name": "browser_screenshot",
+        "description": "截取目前網頁完整截圖，儲存到 agent_files",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "截圖檔名，預設自動命名"}
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "browser_current_url",
+        "description": "取得目前瀏覽器的網址和標題",
+        "input_schema": {"type": "object", "properties": {}, "required": []}
+    },
+    {
+        "name": "browser_close",
+        "description": "關閉瀏覽器",
+        "input_schema": {"type": "object", "properties": {}, "required": []}
+    },
 
     # ── Gmail ─────────────────────────────────────────────────────────
     {
         "name": "check_inbox",
-        "description": "檢查 Gmail 收件匣，自動過濾廣告和垃圾信，只顯示重要信件",
+        "description": "檢查 Gmail 收件匣，自動過濾廣告信",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -211,11 +305,11 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "read_email",
-        "description": "讀取特定信件的完整內容，需要提供從 check_inbox 取得的信件 ID",
+        "description": "讀取特定信件的完整內容",
         "input_schema": {
             "type": "object",
             "properties": {
-                "message_id": {"type": "string", "description": "信件 ID（從 check_inbox 結果中取得）"}
+                "message_id": {"type": "string", "description": "信件 ID（從 check_inbox 取得）"}
             },
             "required": ["message_id"]
         }
@@ -226,17 +320,17 @@ TOOL_DEFINITIONS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "to":      {"type": "string", "description": "收件人 email，多個用逗號分隔"},
+                "to":      {"type": "string", "description": "收件人 email"},
                 "subject": {"type": "string", "description": "郵件主旨"},
                 "body":    {"type": "string", "description": "郵件內文"},
-                "cc":      {"type": "string", "description": "副本收件人 email（選填）"}
+                "cc":      {"type": "string", "description": "副本收件人（選填）"}
             },
             "required": ["to", "subject", "body"]
         }
     },
     {
         "name": "reply_email",
-        "description": "回覆某封信件，需要提供信件 ID 和回覆內容",
+        "description": "回覆某封信件",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -258,35 +352,15 @@ TOOL_DEFINITIONS = [
         }
     },
 
-    # ── Shell ─────────────────────────────────────────────────────────
-    {
-        "name": "run_shell",
-        "description": (
-            "執行 shell / PowerShell 指令。"
-            "適合查系統資訊、管理檔案、執行腳本。"
-            "危險指令會被自動拒絕。"
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "command": {"type": "string", "description": "要執行的指令"}
-            },
-            "required": ["command"]
-        }
-    },
     # ── 自動研究 ─────────────────────────────────────────────────────
     {
         "name": "research_topic",
-        "description": (
-            "給一個主題，自動上網搜尋多個角度並整理存入知識庫。"
-            "之後問相關問題時會自動參考這份研究資料。"
-            "例如：幫我研究 Python 非同步程式設計 / 幫我研究台北的美食推薦"
-        ),
+        "description": "給一個主題，自動上網搜尋並整理存入知識庫",
         "input_schema": {
             "type": "object",
             "properties": {
                 "topic": {"type": "string", "description": "要研究的主題"},
-                "depth": {"type": "integer", "description": "搜尋深度 1~5，越高資料越豐富但越慢，預設 3"}
+                "depth": {"type": "integer", "description": "搜尋深度 1~5，預設 3"}
             },
             "required": ["topic"]
         }
@@ -295,24 +369,24 @@ TOOL_DEFINITIONS = [
     # ── 知識庫（RAG）─────────────────────────────────────────────────
     {
         "name": "import_document",
-        "description": "把本機的文件（.txt / .md / .pdf）匯入知識庫，之後問相關問題時會自動參考",
+        "description": "把本機文件（.txt / .md / .pdf）匯入知識庫",
         "input_schema": {
             "type": "object",
             "properties": {
-                "file_path":   {"type": "string", "description": "文件的完整路徑，例如 C:\\Users\\amber\\Documents\\note.txt"},
-                "source_name": {"type": "string", "description": "這份文件的名稱標籤（選填，預設用檔名）"}
+                "file_path":   {"type": "string", "description": "文件完整路徑"},
+                "source_name": {"type": "string", "description": "文件名稱標籤（選填）"}
             },
             "required": ["file_path"]
         }
     },
     {
         "name": "import_text_to_knowledge",
-        "description": "把一段文字直接加入知識庫，適合從網頁複製的內容或手動輸入的資料",
+        "description": "把一段文字直接加入知識庫",
         "input_schema": {
             "type": "object",
             "properties": {
-                "content":     {"type": "string", "description": "要加入知識庫的文字內容"},
-                "source_name": {"type": "string", "description": "這段內容的名稱標籤"}
+                "content":     {"type": "string", "description": "要加入的文字內容"},
+                "source_name": {"type": "string", "description": "內容的名稱標籤"}
             },
             "required": ["content", "source_name"]
         }
@@ -324,11 +398,11 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "delete_knowledge_document",
-        "description": "從知識庫刪除指定文件的所有內容",
+        "description": "從知識庫刪除指定文件",
         "input_schema": {
             "type": "object",
             "properties": {
-                "source_name": {"type": "string", "description": "要刪除的文件名稱標籤"}
+                "source_name": {"type": "string", "description": "要刪除的文件名稱"}
             },
             "required": ["source_name"]
         }
@@ -342,47 +416,97 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "clear_memories",
-        "description": "清除所有記憶，讓 Agent 忘記之前記住的所有資訊",
+        "description": "清除所有記憶",
         "input_schema": {"type": "object", "properties": {}, "required": []}
     },
-
 ]
+
+# ══════════════════════════════════════════════════════════════════════
+# 敏感工具清單（雲端模型會被移除）
+# ══════════════════════════════════════════════════════════════════════
+PRIVATE_TOOLS = {
+    "check_inbox", "read_email", "send_email", "reply_email", "move_to_trash",
+    "list_memories", "clear_memories",
+    "import_document", "import_text_to_knowledge",
+    "list_knowledge_documents", "delete_knowledge_document",
+    "browser_open", "browser_read", "browser_click", "browser_fill",
+    "browser_screenshot", "browser_search", "browser_current_url", "browser_close",
+    "run_shell", "write_file", "read_file",
+}
+
+
+def _get_safe_tools() -> list:
+    """
+    根據目前執行的 provider 回傳安全工具清單。
+    本地（ollama）：全部開放
+    雲端：移除敏感工具
+    """
+    import os
+    active = os.environ.get("_ACTIVE_PROVIDER", "ollama")
+    if active == "ollama":
+        return TOOL_DEFINITIONS
+
+    safe    = [t for t in TOOL_DEFINITIONS if t["name"] not in PRIVATE_TOOLS]
+    removed = [t["name"] for t in TOOL_DEFINITIONS if t["name"] in PRIVATE_TOOLS]
+    if removed:
+        print(f"[Privacy] 雲端模型（{active}），已停用 {len(removed)} 個敏感工具")
+    return safe
+
 
 # ══════════════════════════════════════════════════════════════════════
 # 統一呼叫入口
 # ══════════════════════════════════════════════════════════════════════
 TOOL_HANDLERS = {
-    "get_current_time":    get_current_time,
-    "get_system_info":     get_system_info,
-    "get_weather":         get_weather,
-    "web_search":          web_search,
-    "write_file":          write_file,
-    "read_file":           read_file,
-    "list_files":          list_files,
-    "open_application":    open_application,
-    "search_installed_apps": search_installed_apps,
-    "list_running_apps":   list_running_apps,
-    "close_application":   close_application,
-    "set_volume":          set_volume,
-    "take_screenshot":     take_screenshot,
-    "mouse_action":        mouse_action,
-    "keyboard_type":       keyboard_type,
-    "run_shell":           run_shell,
-    "check_inbox":         check_inbox,
-    "read_email":          read_email,
-    "send_email":          send_email,
-    "reply_email":         reply_email,
-    "move_to_trash":       move_to_trash,
-    "list_memories":       list_memories,
-    "clear_memories":      clear_memories,
-    "research_topic":           research_topic,
-    "import_document":          import_document,
-    "import_text_to_knowledge": import_text_to_knowledge,
-    "list_knowledge_documents": list_knowledge_documents,
-    "delete_knowledge_document":delete_knowledge_document,
+    "get_current_time":          get_current_time,
+    "get_system_info":           get_system_info,
+    "get_weather":               get_weather,
+    "web_search":                web_search,
+    "write_file":                write_file,
+    "read_file":                 read_file,
+    "list_files":                list_files,
+    "open_application":          open_application,
+    "search_installed_apps":     search_installed_apps,
+    "list_running_apps":         list_running_apps,
+    "close_application":         close_application,
+    "set_volume":                set_volume,
+    "take_screenshot":           take_screenshot,
+    "mouse_action":              mouse_action,
+    "keyboard_type":             keyboard_type,
+    "run_shell":                 run_shell,
+    "browser_open":              browser_open,
+    "browser_read":              browser_read,
+    "browser_search":            browser_search,
+    "browser_click":             browser_click,
+    "browser_fill":              browser_fill,
+    "browser_screenshot":        browser_screenshot,
+    "browser_current_url":       browser_current_url,
+    "browser_close":             browser_close,
+    "check_inbox":               check_inbox,
+    "read_email":                read_email,
+    "send_email":                send_email,
+    "reply_email":               reply_email,
+    "move_to_trash":             move_to_trash,
+    "research_topic":            research_topic,
+    "import_document":           import_document,
+    "import_text_to_knowledge":  import_text_to_knowledge,
+    "list_knowledge_documents":  list_knowledge_documents,
+    "delete_knowledge_document": delete_knowledge_document,
+    "list_memories":             list_memories,
+    "clear_memories":            clear_memories,
 }
 
+
 def execute_tool(name: str, inputs: dict) -> str:
+    import os
+    active = os.environ.get("_ACTIVE_PROVIDER", "ollama")
+
+    # 雲端模型嘗試呼叫敏感工具時直接拒絕（雙重保險）
+    if active != "ollama" and name in PRIVATE_TOOLS:
+        return (
+            f"⛔ 工具「{name}」只在本地 Ollama 模式下可用，"
+            f"目前使用 {active}，已拒絕以保護隱私"
+        )
+
     handler = TOOL_HANDLERS.get(name)
     if not handler:
         return f"❌ 未知工具：{name}"

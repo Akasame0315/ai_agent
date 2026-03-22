@@ -4,7 +4,7 @@ Ollama 提供 OpenAI 相容 API，預設跑在 http://localhost:11434
 支援 tool use 的模型：qwen2.5、llama3.1、mistral-nemo 等
 """
 import json
-import httpx
+import httpx # type: ignore
 from config import OLLAMA_MODEL, OLLAMA_BASE_URL
 from tools import TOOL_DEFINITIONS, execute_tool
 from config import OLLAMA_MODEL

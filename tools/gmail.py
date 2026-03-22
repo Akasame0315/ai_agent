@@ -44,10 +44,10 @@ SPAM_KEYWORDS = [
 
 def _get_service():
     """取得 Gmail API service，第一次執行會觸發瀏覽器授權"""
-    from google.oauth2.credentials    import Credentials
-    from google_auth_oauthlib.flow    import InstalledAppFlow
-    from google.auth.transport.requests import Request
-    from googleapiclient.discovery    import build
+    from google.oauth2.credentials    import Credentials # type: ignore
+    from google_auth_oauthlib.flow    import InstalledAppFlow # type: ignore
+    from google.auth.transport.requests import Request # type: ignore
+    from googleapiclient.discovery    import build # type: ignore
 
     creds = None
 
