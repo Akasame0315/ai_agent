@@ -6,8 +6,8 @@
 """
 import json
 import datetime
-import chromadb
-from chromadb.utils import embedding_functions
+import chromadb # type: ignore
+from chromadb.utils import embedding_functions # type: ignore
 
 
 # ── 初始化 ChromaDB（資料存在本機 memory_db 資料夾）─────────────────

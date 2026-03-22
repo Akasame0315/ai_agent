@@ -112,6 +112,19 @@ async def cmd_start_ollama(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ 啟動失敗，請手動開啟 Ollama")
 
+# ── /restart ───────────────────────────────────────────────────────
+async def cmd_restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id):
+        return
+    await update.message.reply_text("🔄 重啟中...")
+    import subprocess, sys, os
+    subprocess.Popen(
+        [sys.executable, "main.py"],
+        cwd=os.path.dirname(os.path.abspath("main.py")),
+        creationflags=subprocess.CREATE_NO_WINDOW
+    )
+    os._exit(0)
+
 
 # ── 工具歷史清理 ─────────────────────────────────────────────────────
 def _strip_tool_history(history: list) -> list:
@@ -188,6 +201,7 @@ def start_bot():
     app.add_handler(CommandHandler("test_morning", cmd_test_morning))
     app.add_handler(CommandHandler("test_evening", cmd_test_evening))
     app.add_handler(CommandHandler("start_ollama", cmd_start_ollama))
+    app.add_handler(CommandHandler("restart", cmd_restart))
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND, handle_message
     ))
@@ -217,7 +231,8 @@ def start_bot():
             f"  /status        — 查看模型狀態\n"
             f"  /clear         — 清除對話記憶\n"
             f"  /test_morning  — 測試早安推播\n"
-            f"  /test_evening  — 測試晚安推播\n\n"
+            f"  /test_evening  — 測試晚安推播\n"
+            f"  /restart       — 重啟 Agent\n\n"
             f"💬 直接傳訊息就可以開始使用！"
         )
         try:

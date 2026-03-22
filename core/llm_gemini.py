@@ -8,7 +8,7 @@ Gemini 的 Tool Use 格式和 Claude 不同，這裡做了轉換：
 Tool definitions 也從 Anthropic JSON Schema 格式轉成 Gemini 格式。
 """
 import json
-import httpx
+import httpx # type: ignore
 from config import GEMINI_API_KEY
 from tools import TOOL_DEFINITIONS, execute_tool
 import time
