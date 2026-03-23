@@ -201,7 +201,7 @@ def create_scheduler() -> AsyncIOScheduler:
 
     scheduler.add_job(
         morning_heartbeat,
-        CronTrigger(hour=10, minute=0, timezone="Asia/Taipei"),
+        CronTrigger(hour=8, minute=0, timezone="Asia/Taipei"),
         id="morning_heartbeat",
         name="早安推播",
         replace_existing=True
@@ -209,7 +209,7 @@ def create_scheduler() -> AsyncIOScheduler:
 
     scheduler.add_job(
         evening_heartbeat,
-        CronTrigger(hour=22, minute=0, timezone="Asia/Taipei"),
+        CronTrigger(hour=20, minute=0, timezone="Asia/Taipei"),
         id="evening_heartbeat",
         name="晚安推播",
         replace_existing=True

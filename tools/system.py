@@ -12,43 +12,44 @@ FILES_DIR = "agent_files"
 # ── 音量控制 ──────────────────────────────────────────────────────────
 def set_volume(action: str, value: int = 10) -> str:
     try:
-        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume # type: ignore
-        from comtypes import CLSCTX_ALL # type: ignore
-        import ctypes
+        from pycaw.pycaw import AudioUtilities # type: ignore
+        import comtypes # type: ignore
 
-        devices   = AudioUtilities.GetSpeakers()
-        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-        vol       = ctypes.cast(interface, ctypes.POINTER(IAudioEndpointVolume))
-        current   = round(vol.GetMasterVolumeLevelScalar() * 100)
+        device  = AudioUtilities.GetSpeakers()
+        vol     = device.EndpointVolume
+        current = round(vol.GetMasterVolumeLevelScalar() * 100)
+        empty_guid = comtypes.GUID()   # ← 空 GUID 取代 None
 
         if action == "get":
             muted = vol.GetMute()
             return f"🔊 目前音量：{current}%{'（靜音中）' if muted else ''}"
         elif action == "set":
             t = max(0, min(100, int(value)))
-            vol.SetMasterVolumeLevelScalar(t / 100, None)
+            vol.SetMute(0, empty_guid)
+            vol.SetMasterVolumeLevelScalar(t / 100, empty_guid)
             return f"✅ 音量已設定為 {t}%"
         elif action == "up":
             t = max(0, min(100, current + int(value)))
-            vol.SetMasterVolumeLevelScalar(t / 100, None)
+            vol.SetMute(0, empty_guid)
+            vol.SetMasterVolumeLevelScalar(t / 100, empty_guid)
             return f"✅ 音量調大到 {t}%"
         elif action == "down":
             t = max(0, min(100, current - int(value)))
-            vol.SetMasterVolumeLevelScalar(t / 100, None)
+            vol.SetMute(0, empty_guid)
+            vol.SetMasterVolumeLevelScalar(t / 100, empty_guid)
             return f"✅ 音量調小到 {t}%"
         elif action == "mute":
-            vol.SetMute(1, None)
+            vol.SetMute(1, empty_guid)
             return "✅ 已靜音"
         elif action == "unmute":
-            vol.SetMute(0, None)
+            vol.SetMute(0, empty_guid)
             return f"✅ 已取消靜音，目前音量 {current}%"
         else:
             return f"❌ 未知動作：{action}"
-    except ImportError:
-        return "❌ 請先安裝：pip install pycaw comtypes"
+
     except Exception as e:
         return f"❌ 音量控制失敗：{e}"
-
+    
 
 # ── 截圖 ──────────────────────────────────────────────────────────────
 def take_screenshot(filename: str = "") -> str:
