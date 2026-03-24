@@ -1,0 +1,26 @@
+<Configuration>
+  <MappedFolders>
+    <!-- 把 ai_agent 資料夾共享進 Sandbox，Agent 的資料存這裡 -->
+    <MappedFolder>
+      <HostFolder>D:\ai_agent</HostFolder>
+      <SandboxFolder>C:\ai_agent</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+    <!-- 在 sandbox.wsb 加入 pip 快取共享 -->
+    <MappedFolder>
+      <HostFolder>D:\ai_agent\pip_cache</HostFolder>
+      <SandboxFolder>C:\pip_cache</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+
+  <LogonCommand>
+    <!-- Sandbox 開啟後自動執行安裝和啟動腳本 -->
+    <Command>C:\ai_agent\sandbox_setup.bat</Command>
+  </LogonCommand>
+
+  <Networking>Enabled</Networking>
+
+  <!-- 記憶體限制，防止 Agent 吃太多 -->
+  <MemoryInMB>4096</MemoryInMB>
+</Configuration>
