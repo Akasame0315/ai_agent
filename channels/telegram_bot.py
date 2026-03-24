@@ -247,6 +247,15 @@ def start_bot():
         scheduler.shutdown()
         print("[Scheduler] 排程器已關閉")
 
+    async def error_handler(update, context):
+        import telegram.error as tg_err # type: ignore
+        err = context.error
+        if isinstance(err, tg_err.NetworkError):
+            print(f"[Bot] 網路錯誤（自動重連中）：{err}")
+            return  # 不處理，讓 library 自動重試
+        print(f"[Bot] 未預期錯誤：{err}")
+
+    app.add_error_handler(error_handler)
     app.post_init     = on_startup
     app.post_shutdown = on_shutdown
 
