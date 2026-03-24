@@ -206,7 +206,12 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "keyboard_type",
-        "description": "鍵盤輸入文字或按下組合鍵（例如 ctrl+c、alt+f4、win+d）",
+        "description": (
+            "鍵盤輸入文字或按下組合鍵。"
+            "【重要】如果使用者要求「寫文件」、「記錄內容」、「儲存文字」，"
+            "請優先用 write_file 存成檔案，不要用這個工具。"
+            "只有在使用者明確說「直接輸入到視窗」或「貼到應用程式」時才使用。"
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
