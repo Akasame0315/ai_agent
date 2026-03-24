@@ -295,3 +295,59 @@ def close_application(name: str) -> str:
         return f"❌ 找不到執行中的程式：{name}"
     except Exception as e:
         return f"❌ 關閉失敗：{e}"
+
+
+def focus_application(name: str) -> str:
+    """把指定應用程式帶到最上層，繞過 Windows 前景視窗限制"""
+    try:
+        import pygetwindow as gw
+        import ctypes
+        import time
+
+        # 模糊比對視窗
+        all_windows = [w for w in gw.getAllWindows() if w.title.strip()]
+        windows = [w for w in all_windows if name.lower() in w.title.lower()]
+
+        if not windows:
+            titles = [w.title for w in all_windows[:10]]
+            return f"❌ 找不到視窗：{name}\n目前視窗：{titles}"
+
+        win     = windows[0]
+        hwnd    = win._hWnd   # 取得 Windows handle
+
+        # ── 繞過前景視窗限制的技巧 ────────────────────────────────
+        # 1. 先模擬鍵盤輸入讓 Windows 認為使用者有動作
+        ctypes.windll.user32.keybd_event(0, 0, 0, 0)
+
+        # 2. 允許設定前景視窗
+        ctypes.windll.user32.AllowSetForegroundWindow(
+            ctypes.windll.kernel32.GetCurrentProcessId()
+        )
+
+        # 3. 如果最小化先還原
+        SW_RESTORE = 9
+        ctypes.windll.user32.ShowWindow(hwnd, SW_RESTORE)
+        time.sleep(0.2)
+
+        # 4. 強制帶到最上層
+        ctypes.windll.user32.SetForegroundWindow(hwnd)
+        ctypes.windll.user32.BringWindowToTop(hwnd)
+        ctypes.windll.user32.SetWindowPos(
+            hwnd,
+            -1,    # HWND_TOPMOST
+            0, 0, 0, 0,
+            0x0003  # SWP_NOMOVE | SWP_NOSIZE
+        )
+        time.sleep(0.1)
+        # 取消置頂（只是帶到最上層，不要一直置頂）
+        ctypes.windll.user32.SetWindowPos(
+            hwnd,
+            -2,    # HWND_NOTOPMOST
+            0, 0, 0, 0,
+            0x0003
+        )
+
+        return f"✅ 已將「{win.title}」帶到最上層"
+
+    except Exception as e:
+        return f"❌ 失敗：{e}"

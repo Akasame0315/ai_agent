@@ -18,7 +18,8 @@ from tools.info    import (get_current_time, get_system_info,
                             research_topic,
                             get_persona, update_persona, add_persona_instruction)
 from tools.apps    import (open_application, search_installed_apps,
-                            list_running_apps, close_application)
+                            list_running_apps, close_application,
+                            focus_application)
 from tools.system  import (set_volume, take_screenshot,
                             mouse_action, keyboard_type, run_shell)
 from tools.gmail   import (check_inbox, read_email, send_email,
@@ -142,6 +143,17 @@ TOOL_DEFINITIONS = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "要關閉的程式名稱"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "focus_application",
+        "description": "把已開啟但最小化或被遮蓋的應用程式帶到最上層顯示",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "視窗標題或應用程式名稱，支援模糊比對"}
             },
             "required": ["name"]
         }
@@ -473,6 +485,7 @@ TOOL_DEFINITIONS = [
         "description": "清除所有記憶",
         "input_schema": {"type": "object", "properties": {}, "required": []}
     },
+    
 ]
 
 # ══════════════════════════════════════════════════════════════════════
@@ -522,6 +535,7 @@ TOOL_HANDLERS = {
     "search_installed_apps":     search_installed_apps,
     "list_running_apps":         list_running_apps,
     "close_application":         close_application,
+    "focus_application":         focus_application,
     "set_volume":                set_volume,
     "take_screenshot":           take_screenshot,
     "mouse_action":              mouse_action,
