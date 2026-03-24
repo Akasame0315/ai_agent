@@ -7,7 +7,8 @@ Telegram Bot 介面
 from telegram import Update # type: ignore
 from telegram.ext import ( # type: ignore
     ApplicationBuilder, MessageHandler,
-    CommandHandler, filters, ContextTypes
+    CommandHandler, CallbackQueryHandler,
+    filters, ContextTypes
 )
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USER_ID
 from core.agent import run_agent_async
@@ -183,10 +184,64 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("⏳ 思考中...")
     reply, updated_history = await run_agent_async(user_text, history)
+
     conversation_histories[user_id] = updated_history[-40:]
 
     for i in range(0, len(reply), 4000):
         await update.message.reply_text(reply[i:i+4000])
+
+
+
+# ── Inline Keyboard 按鈕回應（直播通知）─────────────────────────────
+async def handle_stream_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query   = update.callback_query
+    user_id = query.from_user.id
+
+    if not is_allowed(user_id):
+        await query.answer("⛔ 無權限")
+        return
+
+    await query.answer()
+    data = query.data  # "open_stream:stream_id" 或 "skip_stream:stream_id"
+
+    if data.startswith("open_stream:"):
+        stream_id = data.replace("open_stream:", "")
+        # 從 webhook_server 取得 URL
+        try:
+            import httpx # type: ignore
+            resp = httpx.get("http://localhost:8000/status", timeout=3)
+            pending = resp.json().get("pending", {})
+            # 取得 URL（webhook_server 的 PENDING_STREAMS）
+        except Exception:
+            pending = {}
+
+        # 直接從 stream_monitor 的記錄找 URL
+        # 因為 webhook_server 和 telegram_bot 在不同程序，用檔案共享
+        try:
+            import json, os
+            pending_file = "pending_streams.json"
+            if os.path.exists(pending_file):
+                with open(pending_file) as f:
+                    pending = json.load(f)
+                url = pending.get(stream_id, "")
+                if url:
+                    import webbrowser
+                    webbrowser.open(url)
+                    await query.edit_message_text(f"✅ 已開啟直播：{url}")
+                    # 清除已處理的待確認項目
+                    del pending[stream_id]
+                    with open(pending_file, "w") as f:
+                        json.dump(pending, f)
+                else:
+                    await query.edit_message_text("❌ 找不到直播連結，可能已過期")
+            else:
+                await query.edit_message_text("❌ 找不到待確認的直播")
+        except Exception as e:
+            await query.edit_message_text(f"❌ 開啟失敗：{e}")
+
+    elif data.startswith("skip_stream:"):
+        await query.edit_message_text("⏭ 已略過此次直播通知")
+
 
 
 # ── 啟動 ──────────────────────────────────────────────────────────────
@@ -205,6 +260,7 @@ def start_bot():
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND, handle_message
     ))
+    app.add_handler(CallbackQueryHandler(handle_stream_callback))
 
     from scheduler.heartbeat import create_scheduler, init as heartbeat_init
     heartbeat_init(app.bot, TELEGRAM_ALLOWED_USER_ID)
