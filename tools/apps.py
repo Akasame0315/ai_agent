@@ -300,7 +300,7 @@ def close_application(name: str) -> str:
 def focus_application(name: str) -> str:
     """把指定應用程式帶到最上層，繞過 Windows 前景視窗限制"""
     try:
-        import pygetwindow as gw
+        import pygetwindow as gw # type: ignore
         import ctypes
         import time
 
