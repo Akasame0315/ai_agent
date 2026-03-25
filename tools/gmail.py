@@ -101,7 +101,7 @@ def _is_spam_ai(sender: str, subject: str, snippet: str) -> bool:
 只回答 "spam" 或 "important"，不要其他文字。"""
 
     try:
-        import httpx, os
+        import httpx, os # type: ignore
         from config import OLLAMA_BASE_URL, OLLAMA_MODEL
 
         resp = httpx.post(
@@ -137,7 +137,7 @@ def _load_filter_prefs() -> str:
 # 收信
 # ══════════════════════════════════════════════════════════════════════
 
-def check_inbox(max_results: int = 10, unread_only: bool = True) -> str:
+def check_inbox(max_results: int = 10, unread_only: bool = True) -> str: 
     """
     檢查收件匣，自動過濾廣告信，只顯示重要信件。
     max_results: 最多查幾封（預設 10）

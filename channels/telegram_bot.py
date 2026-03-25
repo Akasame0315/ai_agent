@@ -397,8 +397,16 @@ def start_bot():
         err = context.error
         if isinstance(err, tg_err.NetworkError):
             print(f"[Bot] 網路錯誤（自動重連中）：{err}")
-            return  # 不處理，讓 library 自動重試
+            return
+        # 其他錯誤推播到 Telegram
         print(f"[Bot] 未預期錯誤：{err}")
+        try:
+            await context.bot.send_message(
+                chat_id=TELEGRAM_ALLOWED_USER_ID,
+                text=f"⚠️ Agent 錯誤通知\n\n{type(err).__name__}: {str(err)[:200]}"
+            )
+        except Exception:
+            pass
 
     app.add_error_handler(error_handler)
     app.post_init     = on_startup
