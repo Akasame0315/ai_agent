@@ -12,44 +12,43 @@ FILES_DIR = "agent_files"
 # ── 音量控制 ──────────────────────────────────────────────────────────
 def set_volume(action: str, value: int = 10) -> str:
     try:
-        from pycaw.pycaw import AudioUtilities # type: ignore
-        import comtypes # type: ignore
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume # type: ignore
+        from comtypes import CLSCTX_ALL # type: ignore
+        import ctypes
 
-        device  = AudioUtilities.GetSpeakers()
-        vol     = device.EndpointVolume
-        current = round(vol.GetMasterVolumeLevelScalar() * 100)
-        empty_guid = comtypes.GUID()   # ← 空 GUID 取代 None
+        devices   = AudioUtilities.GetSpeakers()
+        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+        vol       = ctypes.cast(interface, ctypes.POINTER(IAudioEndpointVolume))
+        current   = round(vol.GetMasterVolumeLevelScalar() * 100)
 
         if action == "get":
             muted = vol.GetMute()
             return f"🔊 目前音量：{current}%{'（靜音中）' if muted else ''}"
         elif action == "set":
             t = max(0, min(100, int(value)))
-            vol.SetMute(0, empty_guid)
-            vol.SetMasterVolumeLevelScalar(t / 100, empty_guid)
+            vol.SetMasterVolumeLevelScalar(t / 100, None)
             return f"✅ 音量已設定為 {t}%"
         elif action == "up":
             t = max(0, min(100, current + int(value)))
-            vol.SetMute(0, empty_guid)
-            vol.SetMasterVolumeLevelScalar(t / 100, empty_guid)
+            vol.SetMasterVolumeLevelScalar(t / 100, None)
             return f"✅ 音量調大到 {t}%"
         elif action == "down":
             t = max(0, min(100, current - int(value)))
-            vol.SetMute(0, empty_guid)
-            vol.SetMasterVolumeLevelScalar(t / 100, empty_guid)
+            vol.SetMasterVolumeLevelScalar(t / 100, None)
             return f"✅ 音量調小到 {t}%"
         elif action == "mute":
-            vol.SetMute(1, empty_guid)
+            vol.SetMute(1, None)
             return "✅ 已靜音"
         elif action == "unmute":
-            vol.SetMute(0, empty_guid)
+            vol.SetMute(0, None)
             return f"✅ 已取消靜音，目前音量 {current}%"
         else:
             return f"❌ 未知動作：{action}"
-
+    except ImportError:
+        return "❌ 請先安裝：pip install pycaw comtypes"
     except Exception as e:
         return f"❌ 音量控制失敗：{e}"
-    
+
 
 # ── 截圖 ──────────────────────────────────────────────────────────────
 def take_screenshot(filename: str = "") -> str:
@@ -60,8 +59,7 @@ def take_screenshot(filename: str = "") -> str:
     path = os.path.join(FILES_DIR, filename)
     try:
         pyautogui.screenshot(path)
-        abs_path = os.path.abspath(path)
-        return f"✅ 截圖已儲存：{filename}\n完整路徑：{abs_path}"
+        return f"✅ 截圖已儲存：{filename}"
     except Exception as e:
         return f"❌ 截圖失敗：{e}"
 
@@ -70,6 +68,15 @@ def take_screenshot(filename: str = "") -> str:
 def mouse_action(action: str, x: int, y: int) -> str:
     import pyautogui # type: ignore
     pyautogui.FAILSAFE = True
+
+    # 緊急停止檢查
+    try:
+        from core.emergency_stop import is_stopped
+        if is_stopped():
+            return "⛔ Agent 處於停止狀態，滑鼠操作已封鎖"
+    except ImportError:
+        pass
+
     try:
         if action == "move":
             pyautogui.moveTo(x, y, duration=0.3)
@@ -95,6 +102,23 @@ def mouse_action(action: str, x: int, y: int) -> str:
 def keyboard_type(text: str = "", hotkey: str = "", interval: float = 0.05) -> str:
     import pyautogui # type: ignore
     import time
+
+    # 緊急停止檢查
+    try:
+        from core.emergency_stop import is_stopped
+        if is_stopped():
+            return "⛔ Agent 處於停止狀態，鍵盤操作已封鎖"
+    except ImportError:
+        pass
+
+    # 安全提示：純文字輸入建議改用 write_file
+    if text and len(text) > 50 and not hotkey:
+        return (
+            "⚠️ 安全警告：長文字輸入可能打斷你的當前操作。\n"
+            "建議改用 write_file 存成檔案。\n"
+            "如果確定要直接輸入，請說「確認直接輸入到視窗」。"
+        )
+
     try:
         time.sleep(0.3)
         if hotkey:
@@ -106,6 +130,8 @@ def keyboard_type(text: str = "", hotkey: str = "", interval: float = 0.05) -> s
             return f"✅ 已輸入文字（{len(text)} 字元）"
         else:
             return "❌ 請提供 text 或 hotkey"
+    except pyautogui.FailSafeException:
+        return "⛔ 緊急停止（滑鼠移到左上角）"
     except Exception as e:
         return f"❌ 鍵盤操作失敗：{e}"
 

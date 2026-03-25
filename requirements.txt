@@ -37,7 +37,13 @@ apscheduler
 # 瀏覽器控制
 playwright
 
+# 瀏覽器控制
+playwright
+
 # 直播監控 Webhook Server
 fastapi
 uvicorn
 ngrok
+
+# 緊急停止鍵盤快捷鍵
+keyboard

@@ -8,6 +8,7 @@ persona.json
 __pycache__/
 *.pyc
 *.pyo
+.python-version
 
 # 虛擬環境
 venv/
@@ -20,9 +21,12 @@ build/
 
 # Agent 產生的檔案
 agent_files/
+pip_cache/
 
 # VS Code 設定（選擇性，看你要不要共享設定）
 .vscode/
+.idea/
+*.swp
 
 # 記憶和知識庫
 memory_db/

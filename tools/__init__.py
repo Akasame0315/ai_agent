@@ -18,7 +18,8 @@ from tools.info    import (get_current_time, get_system_info,
                             research_topic,
                             get_persona, update_persona, add_persona_instruction)
 from tools.apps    import (open_application, search_installed_apps,
-                            list_running_apps, close_application)
+                            list_running_apps, close_application,
+                            focus_application)
 from tools.system  import (set_volume, take_screenshot,
                             mouse_action, keyboard_type, run_shell)
 from tools.gmail   import (check_inbox, read_email, send_email,
@@ -161,6 +162,17 @@ TOOL_DEFINITIONS = [
             "required": ["name"]
         }
     },
+    {
+        "name": "focus_application",
+        "description": "把已開啟但最小化或被遮蓋的應用程式帶到最上層顯示",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "視窗標題或應用程式名稱，支援模糊比對"}
+            },
+            "required": ["name"]
+        }
+    },
 
     # ── 音量 ──────────────────────────────────────────────────────────
     {
@@ -209,7 +221,12 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "keyboard_type",
-        "description": "鍵盤輸入文字或按下組合鍵（例如 ctrl+c、alt+f4、win+d）",
+        "description": (
+            "鍵盤輸入文字或按下組合鍵。"
+            "【重要】如果使用者要求「寫文件」、「記錄內容」、「儲存文字」，"
+            "請優先用 write_file 存成檔案，不要用這個工具。"
+            "只有在使用者明確說「直接輸入到視窗」或「貼到應用程式」時才使用。"
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -519,6 +536,7 @@ TOOL_DEFINITIONS = [
         "description": "清除所有記憶",
         "input_schema": {"type": "object", "properties": {}, "required": []}
     },
+    
 ]
 
 # ══════════════════════════════════════════════════════════════════════
@@ -579,6 +597,7 @@ TOOL_HANDLERS = {
     "search_installed_apps":     search_installed_apps,
     "list_running_apps":         list_running_apps,
     "close_application":         close_application,
+    "focus_application":         focus_application,
     "set_volume":                set_volume,
     "take_screenshot":           take_screenshot,
     "mouse_action":              mouse_action,

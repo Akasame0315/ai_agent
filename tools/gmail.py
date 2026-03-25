@@ -81,6 +81,58 @@ def _is_spam(sender: str, subject: str, snippet: str) -> bool:
     return any(kw.lower() in text for kw in SPAM_KEYWORDS)
 
 
+def _is_spam_ai(sender: str, subject: str, snippet: str) -> bool:
+    """用 LLM 語意判斷是否為廣告/垃圾信"""
+    # 先用規則快速過濾明顯的垃圾信（省 API 呼叫）
+    if _is_spam(sender, subject, snippet):
+        return True
+
+    # 讀取使用者的過濾偏好
+    filter_prefs = _load_filter_prefs()
+
+    prompt = f"""判斷以下信件是否為廣告、促銷、垃圾信或不重要的自動通知。
+
+寄件人：{sender}
+主旨：{subject}
+摘要：{snippet[:200]}
+
+使用者的過濾偏好：{filter_prefs}
+
+只回答 "spam" 或 "important"，不要其他文字。"""
+
+    try:
+        import httpx, os
+        from config import OLLAMA_BASE_URL, OLLAMA_MODEL
+
+        resp = httpx.post(
+            f"{OLLAMA_BASE_URL}/v1/chat/completions",
+            json={
+                "model":    OLLAMA_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream":   False,
+                "max_tokens": 10
+            },
+            timeout=15
+        )
+        result = resp.json()["choices"][0]["message"]["content"].strip().lower()
+        return "spam" in result
+    except Exception:
+        return False   # 判斷失敗就預設為重要信件
+
+
+def _load_filter_prefs() -> str:
+    """從 persona.json 或記憶庫讀取過濾偏好"""
+    try:
+        from core.persona import load
+        p = load()
+        prefs = p.get("email_filter", [])
+        if prefs:
+            return "、".join(prefs)
+    except Exception:
+        pass
+    return "一般廣告、促銷、電子報、系統自動通知"
+
+
 # ══════════════════════════════════════════════════════════════════════
 # 收信
 # ══════════════════════════════════════════════════════════════════════
@@ -126,7 +178,7 @@ def check_inbox(max_results: int = 10, unread_only: bool = True) -> str:
             snippet  = detail.get("snippet", "")
             msg_id   = msg["id"]
 
-            if _is_spam(sender, subject, snippet):
+            if _is_spam_ai(sender, subject, snippet):
                 spam_count += 1
                 continue
 
