@@ -22,6 +22,7 @@ build/
 # Agent 產生的檔案
 agent_files/
 pip_cache/
+logs/
 
 # VS Code 設定（選擇性，看你要不要共享設定）
 .vscode/

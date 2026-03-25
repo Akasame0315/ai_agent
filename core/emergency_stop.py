@@ -7,13 +7,14 @@
 2. 鍵盤快捷鍵（Ctrl+Shift+F12）
 3. 滑鼠移到左上角（pyautogui FailSafe）
 """
-import asyncio
 import threading
-import pyautogui
+import os
 
-# 全域停止旗標
 _stop_event = threading.Event()
-_async_stop_event: asyncio.Event = None
+
+# 偵測是否在沙盒或容器環境
+IS_SANDBOX = os.environ.get("SANDBOX_MODE", "0") == "1" or \
+             os.environ.get("CONTAINER_MODE", "0") == "1"
 
 
 def get_stop_event() -> threading.Event:
@@ -35,12 +36,13 @@ def trigger_stop():
         task_manager.cancel_all()
     except Exception:
         pass
-
-    # 停止 pyautogui
-    try:
-        pyautogui.FAILSAFE = True
-    except Exception:
-        pass
+    # 沙盒環境不需要 pyautogui
+    if not IS_SANDBOX:
+        try:
+            import pyautogui # type: ignore
+            pyautogui.FAILSAFE = True
+        except ImportError:
+            pass
 
 
 def reset_stop():
@@ -54,13 +56,17 @@ def start_keyboard_listener():
     背景監聽 Ctrl+Shift+F12 緊急停止快捷鍵
     在獨立 thread 跑，不阻塞主程式
     """
+    if IS_SANDBOX:
+        print("[EmergencyStop] 沙盒模式，跳過鍵盤監聽")
+        return
+
     def _listen():
         try:
-            import keyboard
+            import keyboard # type: ignore
             keyboard.add_hotkey("ctrl+shift+f12", trigger_stop)
             keyboard.wait()
         except ImportError:
-            print("[EmergencyStop] keyboard 套件未安裝，快捷鍵停止功能不可用")
+            print("[EmergencyStop] keyboard 套件未安裝，快捷鍵停止不可用")
             print("  安裝方式：pip install keyboard")
         except Exception as e:
             print(f"[EmergencyStop] 鍵盤監聽失敗：{e}")
