@@ -22,5 +22,5 @@
   <Networking>Enabled</Networking>
 
   <!-- 記憶體限制，防止 Agent 吃太多 -->
-  <MemoryInMB>4096</MemoryInMB>
+  <MemoryInMB>8192</MemoryInMB>
 </Configuration>
