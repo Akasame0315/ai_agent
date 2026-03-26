@@ -56,11 +56,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(
         f"👋 Agent 已啟動！\n\n"
-        f"🤖 模型模式：{mode}\n"
-        f"🏠 本地模型：{OLLAMA_MODEL}\n\n"
-        f"📅 排程：\n"
-        f"  • 每天 10:00 早安推播\n"
-        f"  • 每天 22:00 晚安回顧\n\n"
+        f"🤖 模型模式：{mode}\n\n"
+        f"📅 排程：每天 10:00 早安 / 22:00 晚安\n\n"
         f"指令：\n"
         f"  /stop          — 🚨 緊急停止所有動作\n"
         f"  /tasks         — 查看背景任務清單\n"
@@ -361,6 +358,11 @@ def start_bot():
         start_keyboard_listener()
         print("[EmergencyStop] Ctrl+Shift+F12 緊急停止已啟用")
 
+        # 初始化提醒系統
+        from scheduler.reminder import init as reminder_init
+        reminder_init(scheduler, application.bot, TELEGRAM_ALLOWED_USER_ID)
+        print("[Reminder] 臨時提醒系統已啟動")
+
         # 啟動通知
         from config import LLM_PROVIDER, CLOUD_PROVIDER, OLLAMA_MODEL
         mode = (
@@ -368,46 +370,30 @@ def start_bot():
             if LLM_PROVIDER == "auto" else LLM_PROVIDER
         )
         startup_msg = (
-            f"✅ Agent 已上線！\n\n"
-            f"🤖 模型模式：{mode}\n\n"
-            f"📋 可用指令：\n"
-            f"  /start         — 查看說明\n"
-            f"  /status        — 查看模型狀態\n"
-            f"  /clear         — 清除對話記憶\n"
-            f"  /test_morning  — 測試早安推播\n"
-            f"  /test_evening  — 測試晚安推播\n"
-            f"  /restart       — 重啟 Agent\n\n"
-            f"💬 直接傳訊息就可以開始使用！"
-            f"🚨 緊急停止：/stop 或 Ctrl+Shift+F12"
+			f"👋 Agent 已啟動！\n\n"
+			f"🤖 {mode}\n\n"
+			f"指令：\n"
+			f"  /start         — 查看指令或說明\n"
+			f"  /tasks         — 查看背景任務清單\n"
+			f"  /cancel [id]   — 取消指定任務\n"
+			f"  /status        — 查看模型狀態\n"
+			f"  /clear         — 清除對話記憶\n"
+			f"  /test_morning  — 測試早安推播\n"
+			f"  /test_evening  — 測試晚安推播\n"
+			f"  /restart       — 重啟 Agent"
+			f"  /start_ollama  — 啟動 Ollama\n"
+			f"🚨 緊急停止：/stop 或 Ctrl+Shift+F12"
         )
-        try:
-            await application.bot.send_message(
-                chat_id=TELEGRAM_ALLOWED_USER_ID,
-                text=startup_msg
-            )
-        except Exception as e:
-            print(f"[Bot] 啟動通知發送失敗：{e}")
+        await application.bot.send_message(
+            chat_id=TELEGRAM_ALLOWED_USER_ID,
+            text=(startup_msg)
+        )
 
     async def on_shutdown(application):
         scheduler.shutdown()
         print("[Scheduler] 排程器已關閉")
 
-    async def error_handler(update, context):
-        import telegram.error as tg_err # type: ignore
-        err = context.error
-        if isinstance(err, tg_err.NetworkError):
-            print(f"[Bot] 網路錯誤（自動重連中）：{err}")
-            return
-        # 其他錯誤推播到 Telegram
-        print(f"[Bot] 未預期錯誤：{err}")
-        try:
-            await context.bot.send_message(
-                chat_id=TELEGRAM_ALLOWED_USER_ID,
-                text=f"⚠️ Agent 錯誤通知\n\n{type(err).__name__}: {str(err)[:200]}"
-            )
-        except Exception:
-            pass
-
+    
     app.add_error_handler(error_handler)
     app.post_init     = on_startup
     app.post_shutdown = on_shutdown

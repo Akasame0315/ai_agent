@@ -212,7 +212,6 @@ def research_topic(topic: str, depth: int = 3) -> str:
     給一個主題，自動上網搜尋多個角度，整理後存入知識庫。
     depth: 搜尋幾個子問題（1~5），越高資料越豐富但越慢
     """
-    import httpx, re # type: ignore
 
     depth = max(1, min(5, int(depth)))
 
@@ -351,3 +350,55 @@ def add_persona_instruction(instruction: str) -> str:
         return f"✅ 已新增指示：{instruction}"
     except Exception as e:
         return f"❌ 新增失敗：{e}"
+
+
+# ── 臨時提醒 ─────────────────────────────────────────────────────────
+def add_reminder(message: str, time_str: str) -> str:
+    """新增一次性提醒，到時間自動推播 Telegram"""
+    try:
+        from scheduler.reminder import add_reminder as _add
+        return _add(message, time_str)
+    except Exception as e:
+        return f"❌ 新增提醒失敗：{e}"
+
+def list_reminders(**_) -> str:
+    """列出所有待觸發的提醒"""
+    try:
+        from scheduler.reminder import list_reminders as _list
+        return _list()
+    except Exception as e:
+        return f"❌ 查詢提醒失敗：{e}"
+
+def cancel_reminder(reminder_id: str) -> str:
+    """取消指定提醒"""
+    try:
+        from scheduler.reminder import cancel_reminder as _cancel
+        return _cancel(reminder_id)
+    except Exception as e:
+        return f"❌ 取消提醒失敗：{e}"
+
+		
+# ── 動態 Skill ────────────────────────────────────────────────────────
+def generate_skill(name: str, description: str, code: str) -> str:
+    """生成 Python 腳本並存檔，等待人工確認後才執行"""
+    try:
+        from core.dynamic_skill import generate_skill as _gen # type: ignore
+        return _gen(name, description, code)
+    except Exception as e:
+        return f"❌ 生成腳本失敗：{e}"
+
+# def execute_skill(filename: str) -> str:
+#     """執行已確認的腳本"""
+#     try:
+#         from core.dynamic_skill import execute_skill as _exec # type: ignore
+#         return _exec(filename)
+#     except Exception as e:
+#         return f"❌ 執行腳本失敗：{e}"
+
+def list_skills(**_) -> str:
+    """列出所有已生成的腳本"""
+    try:
+        from core.dynamic_skill import list_skills as _list # type: ignore
+        return _list()
+    except Exception as e:
+        return f"❌ 查詢腳本失敗：{e}"

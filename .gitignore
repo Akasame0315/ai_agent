@@ -38,3 +38,5 @@ gmail_credentials.json
 gmail_token.json
 install_log.txt
 python-3.13.12-amd64.exe
+reminders.json
+stream_monitor.json
