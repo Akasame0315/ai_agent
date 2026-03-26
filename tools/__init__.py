@@ -16,14 +16,16 @@ from tools.info    import (get_current_time, get_system_info,
                             import_document, import_text_to_knowledge,
                             list_knowledge_documents, delete_knowledge_document,
                             research_topic,
-                            get_persona, update_persona, add_persona_instruction)
+                            get_persona, update_persona, add_persona_instruction,
+                            add_reminder, list_reminders, cancel_reminder,
+                            generate_skill, list_skills)
 from tools.apps    import (open_application, search_installed_apps,
                             list_running_apps, close_application,
                             focus_application)
 from tools.system  import (set_volume, take_screenshot,
                             mouse_action, keyboard_type, run_shell)
 from tools.gmail   import (check_inbox, read_email, send_email,
-                            reply_email, move_to_trash, 
+                            reply_email, move_to_trash,
                           mark_as_read, mark_as_unread)
 from tools.browser import (browser_open, browser_read, browser_click,
                             browser_fill, browser_screenshot,
@@ -449,6 +451,56 @@ TOOL_DEFINITIONS = [
         }
     },
 
+    # ── 臨時提醒 ─────────────────────────────────────────────────────
+    {
+        "name": "add_reminder",
+        "description": "新增一次性提醒，到時間自動推播 Telegram 通知。例如：請在明天下午2點提醒我準備出門",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message":  {"type": "string", "description": "提醒內容"},
+                "time_str": {"type": "string", "description": "時間，格式：今天 15:30 / 明天 09:00 / 2026-03-24 13:00"}
+            },
+            "required": ["message", "time_str"]
+        }
+    },
+    {
+        "name": "list_reminders",
+        "description": "列出所有待觸發的提醒",
+        "input_schema": {"type": "object", "properties": {}, "required": []}
+    },
+    {
+        "name": "cancel_reminder",
+        "description": "取消指定的提醒",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reminder_id": {"type": "string", "description": "提醒 ID（從 list_reminders 取得）"}
+            },
+            "required": ["reminder_id"]
+        }
+    },
+
+    # ── 動態 Skill ────────────────────────────────────────────────────
+    {
+        "name": "generate_skill",
+        "description": "生成 Python 腳本存檔，需要人工確認後說「執行腳本 xxx」才會實際執行。適合一次性的自動化任務。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name":        {"type": "string", "description": "腳本名稱（英文，無空格）"},
+                "description": {"type": "string", "description": "這個腳本做什麼"},
+                "code":        {"type": "string", "description": "Python 程式碼內容"}
+            },
+            "required": ["name", "description", "code"]
+        }
+    },
+    {
+        "name": "list_skills",
+        "description": "列出所有已生成的腳本",
+        "input_schema": {"type": "object", "properties": {}, "required": []}
+    },
+
     # ── 個人化設定 ────────────────────────────────────────────────────
     {
         "name": "get_persona",
@@ -490,7 +542,6 @@ TOOL_DEFINITIONS = [
         "description": "清除所有記憶",
         "input_schema": {"type": "object", "properties": {}, "required": []}
     },
-    
 ]
 
 # ══════════════════════════════════════════════════════════════════════
@@ -566,6 +617,12 @@ TOOL_HANDLERS = {
     "import_text_to_knowledge":  import_text_to_knowledge,
     "list_knowledge_documents":  list_knowledge_documents,
     "delete_knowledge_document": delete_knowledge_document,
+    "add_reminder":              add_reminder,
+    "list_reminders":            list_reminders,
+    "cancel_reminder":           cancel_reminder,
+    "generate_skill":            generate_skill,
+    # "execute_skill":             execute_skill,
+    "list_skills":               list_skills,
     "get_persona":               get_persona,
     "update_persona":            update_persona,
     "add_persona_instruction":   add_persona_instruction,
