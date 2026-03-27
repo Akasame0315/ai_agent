@@ -15,20 +15,28 @@ _executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 
 def _resolve_provider(message: str) -> tuple[str, bool]:
-    """
-    決定使用哪個 provider 和是否本地存記憶。
-    回傳 (provider, save_memory_locally)
-    """
+    """決定使用哪個 provider 和是否本地存記憶"""
     if LLM_PROVIDER == "auto":
         from core.router import route
-        return route(message)
-    # 固定模式：只有 ollama 才存記憶
+        result = route(message)
+        # 確保回傳的是 tuple
+        if isinstance(result, tuple) and len(result) == 2:
+            return result
+        # route 只回傳字串的話
+        return result, (result == "ollama")
     return LLM_PROVIDER, (LLM_PROVIDER == "ollama")
 
 
 def _run_llm(provider: str, conversation_history: list) -> tuple[str, list]:
     """同步執行 LLM，在背景 thread 裡跑"""
     import os
+
+    # 防呆：確保 provider 是有效值
+    valid_providers = {"claude", "gemini", "groq", "ollama"}
+    if provider not in valid_providers:
+        print(f"[Agent] ⚠️ 無效的 provider：{repr(provider)}，fallback 到 groq")
+        provider = "groq"
+
     os.environ["_ACTIVE_PROVIDER"] = provider
 
     if provider == "claude":
@@ -39,11 +47,8 @@ def _run_llm(provider: str, conversation_history: list) -> tuple[str, list]:
         from core.llm_groq import run
     elif provider == "ollama":
         from core.llm_ollama import run
-    else:
-        return f"❌ 未知的 provider：{provider}", conversation_history
 
     return run(conversation_history)
-
 
 def run_agent(user_message: str, conversation_history: list) -> tuple[str, list]:
     """同步版 run_agent（供 CLI 模式使用）"""

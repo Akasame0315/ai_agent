@@ -130,7 +130,6 @@ async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ── /status ───────────────────────────────────────────────────────────
-
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """查看目前模型設定"""
     if not is_allowed(update.effective_user.id):
@@ -150,20 +149,20 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     from core.emergency_stop import is_stopped
     stop_status = "🚨 停止中（傳 /reset 恢復）" if is_stopped() else "✅ 正常運作"
-
-    import config
-    await update.message.reply_text(
-        f"🤖 目前模型設定\n\n"
-        f"LLM_PROVIDER：{config.LLM_PROVIDER}\n"
-        f"CLOUD_PROVIDER：{config.CLOUD_PROVIDER}\n"
-        f"OLLAMA_MODEL：{config.OLLAMA_MODEL}\n\n"
-        f"切換指令：\n"
-        f"  /use_ollama — 切換到本地 Ollama\n"
-        f"  /use_groq   — 切換到 Groq（雲端）\n"
+    
+    lines = [
+        "🤖 目前狀態\n",
+        f"模式：{config.LLM_PROVIDER}",
+        f"雲端：{config.CLOUD_PROVIDER}" if config.LLM_PROVIDER == "auto" else "",
+        f"本地：{config.OLLAMA_MODEL}",
+        f"切換指令：",
+        f"  /use_ollama — 切換到本地 Ollama",
+        f"  /use_groq   — 切換到 Groq（雲端）",
         f"  /use_auto   — 自動路由模式"
         f"Ollama：{ollama_status}",
-        f"Agent：{stop_status}"
-    )
+        f"Agent：{stop_status}",
+    ]
+    await update.message.reply_text("\n".join(l for l in lines if l))
 
 # ── /test_morning / /test_evening ────────────────────────────────────
 async def cmd_test_morning(update: Update, context: ContextTypes.DEFAULT_TYPE):
