@@ -27,10 +27,25 @@ from tools.system  import (set_volume, take_screenshot,
 from tools.gmail   import (check_inbox, read_email, send_email,
                             reply_email, move_to_trash,
                           mark_as_read, mark_as_unread)
+from tools.stream_monitor import (add_stream_channel, remove_stream_channel,
+                               list_stream_channels)
 from tools.browser import (browser_open, browser_read, browser_click,
                             browser_fill, browser_screenshot,
                             browser_search, browser_close,
                             browser_current_url)
+
+import os as _os
+# 容器模式：停用需要桌面環境的工具
+_CONTAINER_MODE = _os.environ.get("CONTAINER_MODE", "0") == "1"
+
+# 在容器模式下額外停用的工具
+CONTAINER_DISABLED_TOOLS = {
+    "set_volume", "take_screenshot",
+    "mouse_action", "keyboard_type",
+    "open_application", "search_installed_apps",
+    "list_running_apps", "close_application",
+} if _CONTAINER_MODE else set()
+
 
 # ══════════════════════════════════════════════════════════════════════
 # Tool 定義（告訴 LLM 有哪些工具）
@@ -236,6 +251,37 @@ TOOL_DEFINITIONS = [
             },
             "required": ["command"]
         }
+    },
+
+    # ── 直播監控 ─────────────────────────────────────────────────────
+    {
+        "name": "add_stream_channel",
+        "description": "新增要監控的直播頻道，開播時會推播 Telegram 通知",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platform": {"type": "string", "description": "平台：twitch 或 youtube"},
+                "channel":  {"type": "string", "description": "Twitch 頻道名稱 或 YouTube Channel ID"}
+            },
+            "required": ["platform", "channel"]
+        }
+    },
+    {
+        "name": "remove_stream_channel",
+        "description": "移除直播監控頻道",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "platform": {"type": "string", "description": "平台：twitch 或 youtube"},
+                "channel":  {"type": "string", "description": "頻道名稱或 ID"}
+            },
+            "required": ["platform", "channel"]
+        }
+    },
+    {
+        "name": "list_stream_channels",
+        "description": "列出所有正在監控的直播頻道",
+        "input_schema": {"type": "object", "properties": {}, "required": []}
     },
 
     # ── 瀏覽器控制 ───────────────────────────────────────────────────
@@ -496,6 +542,17 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "execute_skill",
+        "description": "執行已確認的腳本檔案（需要人工指定檔名）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "腳本檔名"}
+            },
+            "required": ["filename"]
+        }
+    },
+    {
         "name": "list_skills",
         "description": "列出所有已生成的腳本",
         "input_schema": {"type": "object", "properties": {}, "required": []}
@@ -560,19 +617,30 @@ PRIVATE_TOOLS = {
 
 def _get_safe_tools() -> list:
     """
-    根據目前執行的 provider 回傳安全工具清單。
-    本地（ollama）：全部開放
+    根據目前執行的 provider 和執行環境回傳安全工具清單。
+    本地（ollama）：開放非容器停用的工具
     雲端：移除敏感工具
+    容器模式：額外移除桌面控制工具
     """
     import os
     active = os.environ.get("_ACTIVE_PROVIDER", "ollama")
-    if active == "ollama":
+
+    # 合併需要停用的工具
+    disabled = CONTAINER_DISABLED_TOOLS.copy()
+    if active != "ollama":
+        disabled = disabled | PRIVATE_TOOLS
+
+    if not disabled:
         return TOOL_DEFINITIONS
 
-    safe    = [t for t in TOOL_DEFINITIONS if t["name"] not in PRIVATE_TOOLS]
-    removed = [t["name"] for t in TOOL_DEFINITIONS if t["name"] in PRIVATE_TOOLS]
-    if removed:
-        print(f"[Privacy] 雲端模型（{active}），已停用 {len(removed)} 個敏感工具")
+    safe    = [t for t in TOOL_DEFINITIONS if t["name"] not in disabled]
+    removed = [t["name"] for t in TOOL_DEFINITIONS if t["name"] in disabled]
+
+    if _CONTAINER_MODE and CONTAINER_DISABLED_TOOLS:
+        print(f"[Container] 容器模式，已停用桌面工具：{len(CONTAINER_DISABLED_TOOLS)} 個")
+    if active != "ollama" and PRIVATE_TOOLS - CONTAINER_DISABLED_TOOLS:
+        print(f"[Privacy] 雲端模型（{active}），已停用 {len(PRIVATE_TOOLS)} 個敏感工具")
+
     return safe
 
 
@@ -597,6 +665,9 @@ TOOL_HANDLERS = {
     "mouse_action":              mouse_action,
     "keyboard_type":             keyboard_type,
     "run_shell":                 run_shell,
+    "add_stream_channel":        add_stream_channel,
+    "remove_stream_channel":     remove_stream_channel,
+    "list_stream_channels":      list_stream_channels,
     "browser_open":              browser_open,
     "browser_read":              browser_read,
     "browser_search":            browser_search,
@@ -638,8 +709,9 @@ def execute_tool(name: str, inputs: dict) -> str:
     # 雲端模型嘗試呼叫敏感工具時直接拒絕（雙重保險）
     if active != "ollama" and name in PRIVATE_TOOLS:
         return (
-            f"⛔ 工具「{name}」只在本地 Ollama 模式下可用，"
-            f"目前使用 {active}，已拒絕以保護隱私"
+            f"⛔ 工具「{name}」需要本地模型才能使用（隱私保護）。\n"
+            f"目前使用雲端模型：{active}\n\n"
+            f"請傳送 /use ollama 切換到本地模型後再試。"
         )
 
     handler = TOOL_HANDLERS.get(name)

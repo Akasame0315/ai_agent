@@ -10,7 +10,7 @@ import os
 import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler # type: ignore
 
-REMINDER_FILE = os.path.join("data", "reminders.json")
+from core.paths import REMINDER_FILE
 
 _scheduler: AsyncIOScheduler = None
 _bot       = None

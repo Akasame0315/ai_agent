@@ -9,6 +9,7 @@ Telegram Bot 介面
 - 支援背景任務推播
 - 多線程任務不阻塞對話
 """
+import os
 from telegram import Update # type: ignore
 from telegram.ext import ( # type: ignore
     ApplicationBuilder, MessageHandler,
@@ -66,7 +67,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"  /clear         — 清除對話記憶\n"
         f"  /test_morning  — 測試早安推播\n"
         f"  /test_evening  — 測試晚安推播\n"
-        f"  /restart       — 重啟 Agent"
+        f"  /restart       — 重啟 Agent\n"
+        f"  /use_ollama    — 切換本地模型\n"
+        f"  /use_groq      — 切換 Groq\n"
+        f"  /use_auto      — 自動路由模式"
     )
 
 
@@ -126,16 +130,18 @@ async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ── /status ───────────────────────────────────────────────────────────
+
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """查看目前模型設定"""
     if not is_allowed(update.effective_user.id):
         return
-    from config import LLM_PROVIDER, CLOUD_PROVIDER, OLLAMA_MODEL, OLLAMA_BASE_URL
+    import config
     import httpx # type: ignore
 
     # 檢查 Ollama 是否在線
     ollama_status = "❌ 離線"
     try:
-        r = httpx.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=3)
+        r = httpx.get(f"{config.OLLAMA_BASE_URL}/api/tags", timeout=3)
         if r.status_code == 200:
             models = [m["name"] for m in r.json().get("models", [])]
             ollama_status = f"✅ 在線（{', '.join(models[:3])}）"
@@ -145,16 +151,19 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from core.emergency_stop import is_stopped
     stop_status = "🚨 停止中（傳 /reset 恢復）" if is_stopped() else "✅ 正常運作"
 
-    lines = [
-        "📊 目前狀態\n",
-        f"模式：{LLM_PROVIDER}",
-        f"雲端：{CLOUD_PROVIDER}" if LLM_PROVIDER == "auto" else "",
-        f"本地：{OLLAMA_MODEL}",
+    import config
+    await update.message.reply_text(
+        f"🤖 目前模型設定\n\n"
+        f"LLM_PROVIDER：{config.LLM_PROVIDER}\n"
+        f"CLOUD_PROVIDER：{config.CLOUD_PROVIDER}\n"
+        f"OLLAMA_MODEL：{config.OLLAMA_MODEL}\n\n"
+        f"切換指令：\n"
+        f"  /use_ollama — 切換到本地 Ollama\n"
+        f"  /use_groq   — 切換到 Groq（雲端）\n"
+        f"  /use_auto   — 自動路由模式"
         f"Ollama：{ollama_status}",
-        f"Agent：{stop_status}",
-    ]
-    await update.message.reply_text("\n".join(l for l in lines if l))
-
+        f"Agent：{stop_status}"
+    )
 
 # ── /test_morning / /test_evening ────────────────────────────────────
 async def cmd_test_morning(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -183,6 +192,7 @@ async def cmd_start_ollama(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ Ollama 已啟動")
     else:
         await update.message.reply_text("❌ 啟動失敗，請手動開啟 Ollama")
+
 
 # ── /restart ───────────────────────────────────────────────────────
 async def cmd_restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -239,7 +249,8 @@ async def handle_stream_callback(update: Update, context: ContextTypes.DEFAULT_T
         stream_id = data.replace("open_stream:", "")
         try:
             import json, os
-            pending_file = "pending_streams.json"
+            from core.paths import PENDING_STREAMS_FILE as pending_file
+            pending_file = str(pending_file)
             if os.path.exists(pending_file):
                 with open(pending_file) as f:
                     pending = json.load(f)
@@ -305,6 +316,58 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(reply[i:i+4000])
 
 
+# ── 模型切換指令 ──────────────────────────────────────────────────────
+async def _switch_provider(update: Update, provider: str):
+    """切換 LLM Provider 並更新 .env"""
+    import re, os
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+ 
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            env_content = f.read()
+ 
+        # 更新 LLM_PROVIDER
+        if re.search(r"^LLM_PROVIDER=", env_content, re.MULTILINE):
+            env_content = re.sub(
+                r"^LLM_PROVIDER=.*$", f"LLM_PROVIDER={provider}",
+                env_content, flags=re.MULTILINE
+            )
+        else:
+            env_content += f"\nLLM_PROVIDER={provider}\n"
+ 
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.write(env_content)
+ 
+        # 更新目前執行的設定（不重啟也能生效）
+        import config
+        config.LLM_PROVIDER = provider
+        os.environ["LLM_PROVIDER"] = provider
+ 
+        await update.message.reply_text(
+            f"✅ 已切換到 {provider}\n\n"
+            f"目前對話立即生效，無需重啟。\n"
+            f"（.env 也已更新，下次啟動會保留此設定）"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ 切換失敗：{e}")
+
+
+async def cmd_use_ollama(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id):
+        return
+    await _switch_provider(update, "ollama")
+
+async def cmd_use_groq(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id):
+        return
+    await _switch_provider(update, "groq")
+
+async def cmd_use_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_allowed(update.effective_user.id):
+        return
+    await _switch_provider(update, "auto")
+
+
 # ── Error Handler ─────────────────────────────────────────────────────
 async def error_handler(update, context):
     import telegram.error as tg_err # type: ignore
@@ -332,6 +395,9 @@ def start_bot():
     app.add_handler(CommandHandler("test_evening", cmd_test_evening))
     app.add_handler(CommandHandler("start_ollama", cmd_start_ollama))
     app.add_handler(CommandHandler("restart",      cmd_restart))
+    app.add_handler(CommandHandler("use_ollama",   cmd_use_ollama))
+    app.add_handler(CommandHandler("use_groq",     cmd_use_groq))
+    app.add_handler(CommandHandler("use_auto",     cmd_use_auto))
     app.add_handler(CallbackQueryHandler(handle_stream_callback))
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND, handle_message
@@ -370,16 +436,8 @@ def start_bot():
         startup_msg = (
 			f"👋 Agent 已啟動！\n\n"
 			f"🤖 {mode}\n\n"
-			f"指令：\n"
-			f"  /start         — 查看指令或說明\n"
-			f"  /tasks         — 查看背景任務清單\n"
-			f"  /cancel [id]   — 取消指定任務\n"
-			f"  /status        — 查看模型狀態\n"
-			f"  /clear         — 清除對話記憶\n"
-			f"  /test_morning  — 測試早安推播\n"
-			f"  /test_evening  — 測試晚安推播\n"
-			f"  /restart       — 重啟 Agent"
-			f"  /start_ollama  — 啟動 Ollama\n"
+			f"📅 排程：每天 10:00 早安 / 22:00 晚安\n\n"
+			f"查看所有指令或說明： /start \n"
 			f"🚨 緊急停止：/stop 或 Ctrl+Shift+F12"
         )
         await application.bot.send_message(
