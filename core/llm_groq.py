@@ -3,7 +3,7 @@ Groq LLM 實作
 路徑：core/llm_groq.py
 """
 import json
-from groq import Groq
+from groq import Groq # type: ignore
 from config import GROQ_API_KEY
 from tools import _get_safe_tools, execute_tool
 
@@ -32,7 +32,9 @@ client = Groq(api_key=GROQ_API_KEY)
 MODELS = [
     "moonshotai/kimi-k2-instruct",
     "llama-3.3-70b-versatile",
-    "llama3-70b-8192",
+    "llama-3.2-70b-versatile",
+    "llama-3.3-8b-versatile",
+    "mixtral-8x7b-32768",
 ]
 
 _BASE_PROMPT = """你是一個個人 AI Agent，運行在 Windows 電腦上，可以幫使用者完成各種任務。
@@ -181,4 +183,13 @@ def run(conversation_history: list) -> tuple[str, list]:
                 print(f"[Groq] {model} tool call 格式錯誤，切換備用模型...")
                 continue
             raise e
-    return "❌ 所有模型目前都過載，請稍後再試", conversation_history
+    # 所有模型都 400，可能是 history 格式問題，清除 tool 記錄後用第一個模型重試
+    print("[Groq] 嘗試清除對話歷史後重試...")
+    clean_history = [
+        msg for msg in conversation_history
+        if isinstance(msg.get("content"), str)  # 只保留純文字訊息
+    ]
+    try:
+        return _run_with_model(MODELS[0], groq_tools, clean_history)
+    except Exception:
+        return "❌ LLM 呼叫失敗，請重新傳送指令", conversation_history
