@@ -8,9 +8,9 @@
 import json
 import os
 import datetime
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler # type: ignore
 
-REMINDER_FILE = "reminders.json"
+REMINDER_FILE = os.path.join("data", "reminders.json")
 
 _scheduler: AsyncIOScheduler = None
 _bot       = None

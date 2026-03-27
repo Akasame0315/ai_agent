@@ -4,6 +4,11 @@
 import logging, os, sys
 from datetime import datetime
 
+from core.paths import ensure_dirs
+ 
+# 確保所有必要資料夾存在
+ensure_dirs()
+
 os.makedirs("logs", exist_ok=True)
 
 logging.basicConfig(
@@ -17,8 +22,6 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-
-import sys
 
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "telegram"

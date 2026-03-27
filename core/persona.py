@@ -8,7 +8,7 @@
 import json
 import os
 
-PERSONA_FILE = "persona.json"
+PERSONA_FILE = os.path.join("data", "persona.json")
 
 # 預設值
 DEFAULT_PERSONA = {
