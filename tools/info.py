@@ -382,23 +382,37 @@ def cancel_reminder(reminder_id: str) -> str:
 def generate_skill(name: str, description: str, code: str) -> str:
     """生成 Python 腳本並存檔，等待人工確認後才執行"""
     try:
-        from core.dynamic_skill import generate_skill as _gen # type: ignore
+        from core.dynamic_skill import generate_skill as _gen
         return _gen(name, description, code)
     except Exception as e:
         return f"❌ 生成腳本失敗：{e}"
 
-# def execute_skill(filename: str) -> str:
-#     """執行已確認的腳本"""
-#     try:
-#         from core.dynamic_skill import execute_skill as _exec # type: ignore
-#         return _exec(filename)
-#     except Exception as e:
-#         return f"❌ 執行腳本失敗：{e}"
+def execute_skill(filename: str) -> str:
+    """執行已確認的腳本（需要人工指定檔名）"""
+    import os
+
+    # 非沙盒環境直接阻擋
+    is_sandbox = (
+        os.environ.get("SANDBOX_MODE", "0") == "1" or
+        os.environ.get("CONTAINER_MODE", "0") == "1"
+    )
+    if not is_sandbox:
+        return (
+            "⛔ 動態腳本執行僅限沙盒環境。\n\n"
+            "在主機上執行任意腳本有安全風險。\n"
+            "如需執行自動化任務，請改用內建工具或手動執行腳本。"
+        )
+    
+    try:
+        from core.dynamic_skill import execute_skill as _exec
+        return _exec(filename)
+    except Exception as e:
+        return f"❌ 執行腳本失敗：{e}"
 
 def list_skills(**_) -> str:
     """列出所有已生成的腳本"""
     try:
-        from core.dynamic_skill import list_skills as _list # type: ignore
+        from core.dynamic_skill import list_skills as _list
         return _list()
     except Exception as e:
         return f"❌ 查詢腳本失敗：{e}"
