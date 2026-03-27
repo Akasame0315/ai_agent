@@ -66,9 +66,17 @@ def take_screenshot(filename: str = "") -> str:
 
 # ── 滑鼠控制 ──────────────────────────────────────────────────────────
 def mouse_action(action: str, x: int, y: int) -> str:
-    import pyautogui # type: ignore
-    pyautogui.FAILSAFE = True
-
+    import os, pyautogui # type: ignore
+    # 本機環境禁止（沙盒才允許）
+    is_sandbox = (
+        os.environ.get("SANDBOX_MODE", "0") == "1" or
+        os.environ.get("CONTAINER_MODE", "0") == "1"
+    )
+    if not is_sandbox:
+        return (
+            "⛔ 滑鼠控制僅限沙盒環境。\n"
+            "在本機執行有失控風險，已自動阻擋。"
+        )
     # 緊急停止檢查
     try:
         from core.emergency_stop import is_stopped
@@ -100,9 +108,16 @@ def mouse_action(action: str, x: int, y: int) -> str:
 
 # ── 鍵盤輸入 ──────────────────────────────────────────────────────────
 def keyboard_type(text: str = "", hotkey: str = "", interval: float = 0.05) -> str:
-    import pyautogui # type: ignore
-    import time
-
+    import os, pyautogui, time # type: ignore
+    is_sandbox = (
+        os.environ.get("SANDBOX_MODE", "0") == "1" or
+        os.environ.get("CONTAINER_MODE", "0") == "1"
+    )
+    if not is_sandbox:
+        return (
+            "⛔ 鍵盤輸入僅限沙盒環境。\n"
+            "如需輸入文字，請改用 write_file 存成檔案。"
+        )
     # 緊急停止檢查
     try:
         from core.emergency_stop import is_stopped

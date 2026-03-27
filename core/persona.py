@@ -7,8 +7,7 @@
 """
 import json
 import os
-
-PERSONA_FILE = "persona.json"
+from core.paths import PERSONA_FILE
 
 # 預設值
 DEFAULT_PERSONA = {

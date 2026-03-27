@@ -1,42 +1,41 @@
-# 環境變數（絕對不能上傳）
+# ── 環境變數和敏感資料 ────────────────────────────────────────────────
 .env
+gmail_credentials.json
+gmail_token.json
 
-# 個人化設定
-persona.json
+# ── data/ 資料夾（所有 JSON 資料檔案集中在此）────────────────────────
+data/
+!data/.gitkeep
 
-# Python 快取
+# ── Agent 產生的檔案 ──────────────────────────────────────────────────
+agent_files/
+pip_cache/
+logs/
+
+# ── 資料庫和記憶 ──────────────────────────────────────────────────────
+memory_db/
+rag_db/
+
+# ── Python ────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
 .python-version
 
-# 虛擬環境
+# ── 虛擬環境 ──────────────────────────────────────────────────────────
 venv/
 .venv/
 
-# PyInstaller 打包輸出
+# ── 打包輸出 ──────────────────────────────────────────────────────────
 dist/
 build/
 *.spec
 
-# Agent 產生的檔案
-agent_files/
-pip_cache/
-logs/
-
-# VS Code 設定（選擇性，看你要不要共享設定）
+# ── 編輯器 ────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 
-# 記憶和知識庫
-memory_db/
-rag_db/
-
-# Gmail 授權
-gmail_credentials.json
-gmail_token.json
+# ── 作業系統和其他 ─────────────────────────────────────────────────
 install_log.txt
 python-3.13.12-amd64.exe
-reminders.json
-stream_monitor.json

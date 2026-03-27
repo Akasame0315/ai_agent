@@ -542,6 +542,17 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "execute_skill",
+        "description": "執行已確認的腳本檔案（需要人工指定檔名）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "腳本檔名"}
+            },
+            "required": ["filename"]
+        }
+    },
+    {
         "name": "list_skills",
         "description": "列出所有已生成的腳本",
         "input_schema": {"type": "object", "properties": {}, "required": []}
@@ -698,8 +709,9 @@ def execute_tool(name: str, inputs: dict) -> str:
     # 雲端模型嘗試呼叫敏感工具時直接拒絕（雙重保險）
     if active != "ollama" and name in PRIVATE_TOOLS:
         return (
-            f"⛔ 工具「{name}」只在本地 Ollama 模式下可用，"
-            f"目前使用 {active}，已拒絕以保護隱私"
+            f"⛔ 工具「{name}」需要本地模型才能使用（隱私保護）。\n"
+            f"目前使用雲端模型：{active}\n\n"
+            f"請傳送 /use ollama 切換到本地模型後再試。"
         )
 
     handler = TOOL_HANDLERS.get(name)
