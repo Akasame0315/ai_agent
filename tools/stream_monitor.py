@@ -10,7 +10,7 @@
 import json
 import os
 
-MONITOR_FILE = "stream_monitor.json"
+from core.paths import STREAM_MONITOR_FILE as MONITOR_FILE
 
 DEFAULT_CONFIG = {
     "twitch":  [],    # Twitch 頻道名稱列表
@@ -39,12 +39,34 @@ def add_stream_channel(platform: str, channel: str) -> str:
         return "❌ platform 請填 twitch 或 youtube"
 
     config = _load()
-    if channel in config[platform]:
-        return f"⚠️ {platform} 頻道「{channel}」已在監控清單中"
+    target_id = channel
+    display_name = channel
 
-    config[platform].append(channel)
+    from tools.youtube import search_youtube_channel, parse_channel_input
+    # --- YouTube 專屬處理邏輯 ---
+    if platform == "youtube":
+        # 先解析輸入格式 (可能是網址、handle、或名稱)
+        parsed = parse_channel_input(channel)
+        
+        # 如果不是直接給 ID，就去搜尋
+        if parsed["type"] != "id":
+            results = search_youtube_channel(channel)
+            if not results:
+                return f"❌ 找不到 YouTube 頻道：{channel}，請提供正確名稱或網址。"
+            
+            # 取得搜尋結果的第一個（最匹配的）
+            target_id = results[0]["id"]
+            display_name = results[0]["name"]
+        else:
+            target_id = parsed["value"]
+            display_name = f"ID: {target_id}"
+
+    if target_id in config[platform]:
+        return f"⚠️ {platform} 頻道「{display_name}」已在監控清單中"
+
+    config[platform].append(target_id)
     _save(config)
-    return f"✅ 已新增監控：{platform} / {channel}"
+    return f"✅ 已新增監控：{platform} / {display_name}（{target_id}）"
 
 
 def remove_stream_channel(platform: str, channel: str) -> str:

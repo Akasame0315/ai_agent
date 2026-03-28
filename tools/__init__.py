@@ -29,6 +29,7 @@ from tools.gmail   import (check_inbox, read_email, send_email,
                           mark_as_read, mark_as_unread)
 from tools.stream_monitor import (add_stream_channel, remove_stream_channel,
                                list_stream_channels)
+from tools.youtube import (find_youtube_channel, add_youtube_channel_by_query)
 from tools.browser import (browser_open, browser_read, browser_click,
                             browser_fill, browser_screenshot,
                             browser_search, browser_close,
@@ -250,6 +251,39 @@ TOOL_DEFINITIONS = [
                 "command": {"type": "string", "description": "要執行的指令"}
             },
             "required": ["command"]
+        }
+    },
+
+    # ── YouTube 頻道搜尋 ─────────────────────────────────────────────
+    {
+        "name": "find_youtube_channel",
+        "description": (
+            "搜尋 YouTube 頻道。支援多種輸入格式："
+            "頻道名稱（hololive）、@handle（@hololive）、"
+            "完整網址（https://youtube.com/@hololive）、Channel ID（UCxxxxxx）。"
+            "找到多個結果時會列出讓使用者選擇。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "頻道名稱、@handle、網址或 Channel ID"}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "add_youtube_channel_by_query",
+        "description": (
+            "搜尋 YouTube 頻道並直接新增監控。"
+            "找到唯一結果時自動新增，找到多個時讓使用者確認。"
+            "適合使用者說「追蹤 hololive」這類指令時使用。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "頻道名稱、@handle 或網址"}
+            },
+            "required": ["query"]
         }
     },
 
@@ -665,6 +699,8 @@ TOOL_HANDLERS = {
     "mouse_action":              mouse_action,
     "keyboard_type":             keyboard_type,
     "run_shell":                 run_shell,
+    "find_youtube_channel":          find_youtube_channel,
+    "add_youtube_channel_by_query":  add_youtube_channel_by_query,
     "add_stream_channel":        add_stream_channel,
     "remove_stream_channel":     remove_stream_channel,
     "list_stream_channels":      list_stream_channels,

@@ -16,6 +16,7 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "auto").lower()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "")
 GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")
+YOUTUBE_API_KEY   = os.getenv("YOUTUBE_API_KEY", "")
 
 # ── Ollama 本地設定 ────────────────────────────────────────────────────
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
