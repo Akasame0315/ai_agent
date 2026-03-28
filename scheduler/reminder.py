@@ -1,5 +1,5 @@
 """
-臨時排程提醒管理器
+提醒管理器（支援一次性和循環提醒）
 路徑：scheduler/reminder.py
 
 允許從 Telegram 動態新增一次性提醒。
@@ -7,10 +7,15 @@
 """
 import json
 import os
+import uuid
 import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler # type: ignore
-
+from apscheduler.triggers.cron      import CronTrigger # type: ignore
+from apscheduler.triggers.date      import DateTrigger # type: ignore
 from core.paths import REMINDER_FILE
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 _scheduler: AsyncIOScheduler = None
 _bot       = None
@@ -36,22 +41,31 @@ def _load() -> list:
 
 
 def _save(reminders: list):
+    os.makedirs(os.path.dirname(REMINDER_FILE), exist_ok=True)
     with open(REMINDER_FILE, "w", encoding="utf-8") as f:
         json.dump(reminders, f, ensure_ascii=False, indent=2)
 
 
 def _reload_reminders():
-    """程式重啟後重新載入未來的提醒"""
+    """程式重啟後重新載入所有提醒"""
     reminders = _load()
     now       = datetime.datetime.now()
+    reloaded  = 0
     for r in reminders:
-        trigger_time = datetime.datetime.fromisoformat(r["time"])
-        if trigger_time > now:
-            _schedule_one(r["id"], r["message"], trigger_time)
+        if r.get("repeat"):
+            _schedule_repeat(r)
+            reloaded += 1
+        else:
+            trigger_time = datetime.datetime.fromisoformat(r["time"])
+            if trigger_time > now:
+                _schedule_one(r["id"], r["message"], trigger_time)
+                reloaded += 1
+    if reloaded:
+        logger.info(f"[Reminder] 已載入 {reloaded} 個提醒")
 
 
 def _schedule_one(reminder_id: str, message: str, trigger_time: datetime.datetime):
-    """把單一提醒加進排程器"""
+    """排程一次性提醒"""
     if _scheduler is None:
         return
 
@@ -59,40 +73,73 @@ def _schedule_one(reminder_id: str, message: str, trigger_time: datetime.datetim
         if _bot and _user_id:
             await _bot.send_message(
                 chat_id=_user_id,
-                text=f"⏰ 提醒時間到！\n\n{message}"
+                text=f"⏰ 提醒！\n\n{message}"
             )
         # 觸發後從清單移除
         reminders = _load()
-        reminders = [r for r in reminders if r["id"] != reminder_id]
-        _save(reminders)
+        _save([r for r in reminders if r["id"] != reminder_id])
 
     _scheduler.add_job(
         _fire,
-        trigger="date",
-        run_date=trigger_time,
+        trigger=DateTrigger(run_date=trigger_time),
         id=f"reminder_{reminder_id}",
         replace_existing=True
     )
 
 
-def add_reminder(message: str, time_str: str) -> str:
-    """
-    新增一次性提醒。
-    time_str 格式：YYYY-MM-DD HH:MM 或 明天 HH:MM 或 今天 HH:MM
-    """
-    import uuid
+def _schedule_repeat(r: dict):
+    """排程循環提醒"""
+    if _scheduler is None:
+        return
 
-    # 解析時間
+    repeat     = r["repeat"]  # daily / weekly / monthly
+    message    = r["message"]
+    reminder_id = r["id"]
+    hour       = r.get("hour", 9)
+    minute     = r.get("minute", 0)
+    day_of_week = r.get("day_of_week", None)   # 0=週一 ~ 6=週日
+    day        = r.get("day", None)             # 每月幾號
+
+    async def _fire():
+        if _bot and _user_id:
+            await _bot.send_message(
+                chat_id=_user_id,
+                text=f"🔔 循環提醒\n\n{message}"
+            )
+        logger.info(f"[Reminder] 循環提醒觸發：{message[:30]}")
+
+    if repeat == "daily":
+        trigger = CronTrigger(hour=hour, minute=minute, timezone="Asia/Taipei")
+    elif repeat == "weekly":
+        dow     = day_of_week if day_of_week is not None else 6  # 預設週日
+        trigger = CronTrigger(day_of_week=dow, hour=hour, minute=minute, timezone="Asia/Taipei")
+    elif repeat == "monthly":
+        d       = day if day else 1
+        trigger = CronTrigger(day=d, hour=hour, minute=minute, timezone="Asia/Taipei")
+    else:
+        logger.warning(f"[Reminder] 未知的循環類型：{repeat}")
+        return
+
+    _scheduler.add_job(
+        _fire,
+        trigger=trigger,
+        id=f"reminder_{reminder_id}",
+        replace_existing=True
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 公開 API
+# ══════════════════════════════════════════════════════════════════════
+
+def add_reminder(message: str, time_str: str) -> str:
+    """新增一次性提醒"""
     trigger_time = _parse_time(time_str)
     if trigger_time is None:
         return (
             f"❌ 無法解析時間：{time_str}\n"
-            f"格式範例：\n"
-            f"  2026-03-24 13:00\n"
-            f"  今天 15:30\n"
-            f"  明天 09:00"
+            f"格式：今天 15:30 / 明天 09:00 / 2026-03-24 13:00"
         )
-
     if trigger_time <= datetime.datetime.now():
         return f"❌ 指定時間已過：{trigger_time.strftime('%Y-%m-%d %H:%M')}"
 
@@ -100,7 +147,8 @@ def add_reminder(message: str, time_str: str) -> str:
     reminder    = {
         "id":      reminder_id,
         "message": message,
-        "time":    trigger_time.isoformat()
+        "time":    trigger_time.isoformat(),
+        "repeat":  None
     }
 
     # 存檔
@@ -112,31 +160,102 @@ def add_reminder(message: str, time_str: str) -> str:
     _schedule_one(reminder_id, message, trigger_time)
 
     return (
-        f"✅ 已設定提醒\n"
-        f"📝 內容：{message}\n"
-        f"⏰ 時間：{trigger_time.strftime('%Y-%m-%d %H:%M')}\n"
-        f"🆔 ID：{reminder_id}"
+        f"✅ 已設定一次性提醒\n"
+        f"📝 {message}\n"
+        f"⏰ {trigger_time.strftime('%Y-%m-%d %H:%M')}\n"
+        f"🆔 {reminder_id}"
+    )
+
+
+def add_repeat_reminder(
+    message: str,
+    repeat: str,
+    hour: int = 9,
+    minute: int = 0,
+    day_of_week: int = None,
+    day: int = None
+) -> str:
+    """
+    新增循環提醒。
+    repeat: daily（每天）/ weekly（每週）/ monthly（每月）
+    hour/minute: 觸發時間
+    day_of_week: 週幾（0=週一, 6=週日），weekly 時使用
+    day: 幾號，monthly 時使用
+    """
+    repeat = repeat.lower()
+    if repeat not in ("daily", "weekly", "monthly"):
+        return "❌ repeat 請填：daily / weekly / monthly"
+
+    reminder_id = str(uuid.uuid4())[:8]
+    reminder    = {
+        "id":          reminder_id,
+        "message":     message,
+        "time":        None,
+        "repeat":      repeat,
+        "hour":        hour,
+        "minute":      minute,
+        "day_of_week": day_of_week,
+        "day":         day
+    }
+    reminders = _load()
+    reminders.append(reminder)
+    _save(reminders)
+    _schedule_repeat(reminder)
+
+    # 產生說明文字
+    time_desc = f"{hour:02d}:{minute:02d}"
+    if repeat == "daily":
+        freq_desc = f"每天 {time_desc}"
+    elif repeat == "weekly":
+        days = ["週一","週二","週三","週四","週五","週六","週日"]
+        dow  = day_of_week if day_of_week is not None else 6
+        freq_desc = f"每{days[dow]} {time_desc}"
+    else:
+        d = day if day else 1
+        freq_desc = f"每月 {d} 號 {time_desc}"
+
+    return (
+        f"✅ 已設定循環提醒\n"
+        f"📝 {message}\n"
+        f"🔄 {freq_desc}\n"
+        f"🆔 {reminder_id}"
     )
 
 
 def list_reminders() -> str:
-    """列出所有待觸發的提醒"""
+    """列出所有提醒"""
     reminders = _load()
     now       = datetime.datetime.now()
 
-    # 只顯示未來的提醒
-    future = [r for r in reminders
-              if datetime.datetime.fromisoformat(r["time"]) > now]
+    one_time = [r for r in reminders if not r.get("repeat") and
+                datetime.datetime.fromisoformat(r["time"]) > now]
+    repeats  = [r for r in reminders if r.get("repeat")]
 
-    if not future:
-        return "📭 目前沒有設定任何提醒"
+    if not one_time and not repeats:
+        return "📭 目前沒有任何提醒"
 
-    lines = [f"⏰ 待觸發的提醒（共 {len(future)} 個）：\n"]
-    for r in sorted(future, key=lambda x: x["time"]):
-        t = datetime.datetime.fromisoformat(r["time"])
-        lines.append(
-            f"  [{r['id']}] {t.strftime('%m/%d %H:%M')} — {r['message']}"
-        )
+    lines = []
+    if one_time:
+        lines.append(f"⏰ 一次性提醒（{len(one_time)} 個）：")
+        for r in sorted(one_time, key=lambda x: x["time"]):
+            t = datetime.datetime.fromisoformat(r["time"])
+            lines.append(f"  [{r['id']}] {t.strftime('%m/%d %H:%M')} — {r['message']}")
+
+    if repeats:
+        lines.append(f"\n🔄 循環提醒（{len(repeats)} 個）：")
+        days_tw = ["週一","週二","週三","週四","週五","週六","週日"]
+        for r in repeats:
+            h, m = r.get("hour", 9), r.get("minute", 0)
+            if r["repeat"] == "daily":
+                freq = f"每天 {h:02d}:{m:02d}"
+            elif r["repeat"] == "weekly":
+                dow  = r.get("day_of_week", 6)
+                freq = f"每{days_tw[dow]} {h:02d}:{m:02d}"
+            else:
+                d    = r.get("day", 1)
+                freq = f"每月{d}號 {h:02d}:{m:02d}"
+            lines.append(f"  [{r['id']}] {freq} — {r['message']}")
+
     return "\n".join(lines)
 
 
@@ -150,8 +269,6 @@ def cancel_reminder(reminder_id: str) -> str:
         return f"❌ 找不到提醒 ID：{reminder_id}"
 
     _save(reminders)
-
-    # 從排程器移除
     if _scheduler:
         try:
             _scheduler.remove_job(f"reminder_{reminder_id}")
@@ -162,29 +279,25 @@ def cancel_reminder(reminder_id: str) -> str:
 
 
 def _parse_time(time_str: str) -> datetime.datetime | None:
-    """解析各種時間格式"""
+    """解析時間字串"""
     time_str = time_str.strip()
     now      = datetime.datetime.now()
 
-    # 格式一：YYYY-MM-DD HH:MM
     for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M"):
         try:
             return datetime.datetime.strptime(time_str, fmt)
         except ValueError:
             pass
 
-    # 格式二：今天/明天 HH:MM
     for prefix, delta in [("今天", 0), ("明天", 1), ("後天", 2)]:
         if time_str.startswith(prefix):
-            time_part = time_str[len(prefix):].strip()
             try:
-                t = datetime.datetime.strptime(time_part, "%H:%M")
+                t    = datetime.datetime.strptime(time_str[len(prefix):].strip(), "%H:%M")
                 base = now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
                 return base + datetime.timedelta(days=delta)
             except ValueError:
                 pass
 
-    # 格式三：純時間 HH:MM（預設今天，如果已過就明天）
     try:
         t    = datetime.datetime.strptime(time_str, "%H:%M")
         base = now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)

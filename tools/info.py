@@ -352,17 +352,31 @@ def add_persona_instruction(instruction: str) -> str:
         return f"❌ 新增失敗：{e}"
 
 
-# ── 臨時提醒 ─────────────────────────────────────────────────────────
+# ── 提醒系統 ─────────────────────────────────────────────────────────
 def add_reminder(message: str, time_str: str) -> str:
-    """新增一次性提醒，到時間自動推播 Telegram"""
+    """新增一次性提醒"""
     try:
         from scheduler.reminder import add_reminder as _add
         return _add(message, time_str)
     except Exception as e:
         return f"❌ 新增提醒失敗：{e}"
 
+
+def add_repeat_reminder(
+    message: str, repeat: str,
+    hour: int = 9, minute: int = 0,
+    day_of_week: int = None, day: int = None
+) -> str:
+    """新增循環提醒（每天/每週/每月）"""
+    try:
+        from scheduler.reminder import add_repeat_reminder as _add
+        return _add(message, repeat, hour, minute, day_of_week, day)
+    except Exception as e:
+        return f"❌ 新增循環提醒失敗：{e}"
+
+
 def list_reminders(**_) -> str:
-    """列出所有待觸發的提醒"""
+    """列出所有提醒（一次性和循環）"""
     try:
         from scheduler.reminder import list_reminders as _list
         return _list()
@@ -377,7 +391,7 @@ def cancel_reminder(reminder_id: str) -> str:
     except Exception as e:
         return f"❌ 取消提醒失敗：{e}"
 
-		
+
 # ── 動態 Skill ────────────────────────────────────────────────────────
 def generate_skill(name: str, description: str, code: str) -> str:
     """生成 Python 腳本並存檔，等待人工確認後才執行"""

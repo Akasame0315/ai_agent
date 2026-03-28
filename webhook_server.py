@@ -224,7 +224,7 @@ async def lifespan(app: FastAPI):
     ]
     await send_telegram("\n".join(status_lines))
 
-    # 啟動輪詢排程（備用，每 5 分鐘檢查一次）
+    # 啟動輪詢排程（備用，每 30 分鐘檢查一次）
     from apscheduler.schedulers.asyncio import AsyncIOScheduler # type: ignore
     poll_scheduler = AsyncIOScheduler(timezone="Asia/Taipei")
 
@@ -236,12 +236,12 @@ async def lifespan(app: FastAPI):
 
     poll_scheduler.add_job(
         _poll,
-        "interval", minutes=5,
+        "interval", minutes=30,
         id="stream_poll",
         replace_existing=True
     )
     poll_scheduler.start()
-    logger.info("[StreamPoll] 輪詢排程已啟動（每 5 分鐘）")
+    logger.info("[StreamPoll] 輪詢排程已啟動（每 30 分鐘）")
 
     yield
 

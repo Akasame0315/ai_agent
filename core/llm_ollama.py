@@ -121,6 +121,7 @@ def _try_start_ollama() -> bool:
         return False
 
 def run(conversation_history: list) -> tuple[str, list]:
+    print(f"[Ollama] BASE_URL={OLLAMA_BASE_URL}, MODEL={OLLAMA_MODEL}")
     ollama_tools = _to_ollama_tools()
     url = f"{OLLAMA_BASE_URL}/v1/chat/completions"
     print(f"[Ollama] 準備呼叫：{url}，模型：{OLLAMA_MODEL}")  # 加這行

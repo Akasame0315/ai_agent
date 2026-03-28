@@ -58,7 +58,6 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"👋 Agent 已啟動！\n\n"
         f"🤖 模型模式：{mode}\n\n"
-        f"📅 排程：每天 10:00 早安 / 22:00 晚安\n\n"
         f"指令：\n"
         f"  /stop          — 🚨 緊急停止所有動作\n"
         f"  /tasks         — 查看背景任務清單\n"
@@ -437,7 +436,6 @@ def start_bot():
         startup_msg = (
 			f"👋 Agent 已啟動！\n\n"
 			f"🤖 {mode}\n\n"
-			f"📅 排程：每天 10:00 早安 / 22:00 晚安\n\n"
 			f"查看所有指令或說明： /start \n"
 			f"🚨 緊急停止：/stop 或 Ctrl+Shift+F12"
         )

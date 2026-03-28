@@ -17,8 +17,8 @@ from tools.info    import (get_current_time, get_system_info,
                             list_knowledge_documents, delete_knowledge_document,
                             research_topic,
                             get_persona, update_persona, add_persona_instruction,
-                            add_reminder, list_reminders, cancel_reminder,
-                            generate_skill, list_skills)
+                            add_reminder, add_repeat_reminder, list_reminders, cancel_reminder,
+                            generate_skill, execute_skill, list_skills)
 from tools.apps    import (open_application, search_installed_apps,
                             list_running_apps, close_application,
                             focus_application)
@@ -545,6 +545,26 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "add_repeat_reminder",
+        "description": (
+            "新增循環提醒，會定期推播 Telegram 通知。"
+            "repeat: daily（每天）/ weekly（每週）/ monthly（每月）。"
+            "例如：每週日早上 9 點提醒看週報 → repeat=weekly, day_of_week=6, hour=9"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message":     {"type": "string",  "description": "提醒內容"},
+                "repeat":      {"type": "string",  "description": "daily / weekly / monthly"},
+                "hour":        {"type": "integer", "description": "觸發小時（0-23），預設 9"},
+                "minute":      {"type": "integer", "description": "觸發分鐘（0-59），預設 0"},
+                "day_of_week": {"type": "integer", "description": "星期幾（0=週一~6=週日），weekly 時使用"},
+                "day":         {"type": "integer", "description": "幾號（1-31），monthly 時使用"}
+            },
+            "required": ["message", "repeat"]
+        }
+    },
+    {
         "name": "list_reminders",
         "description": "列出所有待觸發的提醒",
         "input_schema": {"type": "object", "properties": {}, "required": []}
@@ -725,10 +745,11 @@ TOOL_HANDLERS = {
     "list_knowledge_documents":  list_knowledge_documents,
     "delete_knowledge_document": delete_knowledge_document,
     "add_reminder":              add_reminder,
+    "add_repeat_reminder":       add_repeat_reminder,
     "list_reminders":            list_reminders,
     "cancel_reminder":           cancel_reminder,
     "generate_skill":            generate_skill,
-    # "execute_skill":             execute_skill,
+    "execute_skill":             execute_skill,
     "list_skills":               list_skills,
     "get_persona":               get_persona,
     "update_persona":            update_persona,

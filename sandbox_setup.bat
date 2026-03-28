@@ -33,6 +33,14 @@ set CONTAINER_MODE=1
 set SANDBOX_MODE=1
 set PIP_CACHE_DIR=C:\pip_cache
 
+:: 自動抓取 Windows Sandbox 的網關 IP (主機 IP)
+for /f "tokens=3" %%a in ('route print 0.0.0.0 ^| findstr 0.0.0.0') do (
+    set HOST_IP=%%a
+    goto :break
+)
+:break
+set OLLAMA_BASE_URL=http://%HOST_IP%:11434
+
 :: 安裝套件（排除桌面控制）
 echo [Setup] install packages...
 python -m pip install --upgrade pip --cache-dir C:\pip_cache
