@@ -193,15 +193,16 @@ async def cmd_start_ollama(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ── /restart ───────────────────────────────────────────────────────
-async def cmd_restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_restart(update, context):
     if not is_allowed(update.effective_user.id):
         return
     await update.message.reply_text("🔄 重啟中...")
     import subprocess, sys, os
+    # 重新執行自己，讓 cmd /k 的視窗繼續跑
     subprocess.Popen(
         [sys.executable, "main.py"],
-        cwd=os.path.dirname(os.path.abspath("main.py")),
-        creationflags=subprocess.CREATE_NO_WINDOW
+        cwd=os.getcwd(),
+        creationflags=subprocess.CREATE_NEW_CONSOLE  # 開新視窗
     )
     os._exit(0)
 

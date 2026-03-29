@@ -54,9 +54,9 @@ if %errorlevel% neq 0 (
 )
 
 :: 啟動 Agent
+:: ── 啟動（all 模式：Bot + Webhook 在同一個程序）─────────────────
 echo [Setup] start main.py... >> %LOG_FILE%
-start "AI Agent" cmd /k "python main.py"
-start "AI Agent" cmd /k "python webhook_server.py"
+start "AI Agent" cmd /k "python main.py all"
 
 echo [Setup] Agent started in sandbox mode. You can close this window now.
 pause
