@@ -99,24 +99,40 @@ async def notify_stream_live(platform: str, channel: str, title: str, url: str, 
 
 
 # ── YouTube WebSub ────────────────────────────────────────────────────
-async def subscribe_youtube_websub(channel_id: str):
+async def subscribe_youtube_websub(channel_id: str) -> bool:
+    """訂閱 YouTube WebSub，回傳是否成功發送訂閱請求"""
     topic    = f"https://www.youtube.com/xml/feeds/videos.xml?channel_id={channel_id}"
     callback = f"{PUBLIC_URL}/youtube/webhook"
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            "https://pubsubhubbub.appspot.com/subscribe",
-            data={
-                "hub.callback":      callback,
-                "hub.topic":         topic,
-                "hub.verify":        "async",
-                "hub.mode":          "subscribe",
-                "hub.lease_seconds": "864000"
-            }
-        )
-        if resp.status_code in (200, 202, 204):
-            print(f"[YouTube] 已訂閱 WebSub：{channel_id}")
-        else:
-            print(f"[YouTube] 訂閱失敗：{channel_id} → {resp.status_code} {resp.text}")
+
+    if not PUBLIC_URL:
+        logger.error("[YouTube] PUBLIC_URL 未設定，無法訂閱")
+        return False
+
+    logger.info(f"[YouTube] 訂閱 WebSub：{channel_id}")
+    logger.info(f"[YouTube] Callback URL：{callback}")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://pubsubhubbub.appspot.com/subscribe",
+                data={
+                    "hub.callback":      callback,
+                    "hub.topic":         topic,
+                    "hub.verify":        "async",
+                    "hub.mode":          "subscribe",
+                    "hub.lease_seconds": "864000"
+                },
+                timeout=15
+            )
+            if resp.status_code in (200, 202, 204):
+                logger.info(f"[YouTube] 訂閱請求已接受（{resp.status_code}），等待 PubSubHubbub 驗證 GET {callback}")
+                return True
+            else:
+                logger.error(f"[YouTube] 訂閱失敗：{resp.status_code} {resp.text[:200]}")
+                return False
+    except Exception as e:
+        logger.error(f"[YouTube] 訂閱異常：{e}")
+        return False
 
 
 # ── Twitch（保留但預設停用）──────────────────────────────────────────
@@ -224,28 +240,28 @@ async def lifespan(app: FastAPI):
     ]
     await send_telegram("\n".join(status_lines))
 
-    # 啟動輪詢排程（備用，每 30 分鐘檢查一次）
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler # type: ignore
-    poll_scheduler = AsyncIOScheduler(timezone="Asia/Taipei")
+    # 取消輪詢排程（備用，每 30 分鐘檢查一次）
+    # from apscheduler.schedulers.asyncio import AsyncIOScheduler # type: ignore
+    # poll_scheduler = AsyncIOScheduler(timezone="Asia/Taipei")
 
-    async def _poll():
-        from tools.stream_check import poll_all_streams
-        count = await poll_all_streams(notify_stream_live)
-        if count:
-            logger.info(f"[Poll] 本次發現 {count} 個新直播")
+    # async def _poll():
+    #     from tools.stream_check import poll_all_streams
+    #     count = await poll_all_streams(notify_stream_live)
+    #     if count:
+    #         logger.info(f"[Poll] 本次發現 {count} 個新直播")
 
-    poll_scheduler.add_job(
-        _poll,
-        "interval", minutes=30,
-        id="stream_poll",
-        replace_existing=True
-    )
-    poll_scheduler.start()
-    logger.info("[StreamPoll] 輪詢排程已啟動（每 30 分鐘）")
+    # poll_scheduler.add_job(
+    #     _poll,
+    #     "interval", minutes=30,
+    #     id="stream_poll",
+    #     replace_existing=True
+    # )
+    # poll_scheduler.start()
+    # logger.info("[StreamPoll] 輪詢排程已啟動（每 30 分鐘）")
 
     yield
 
-    poll_scheduler.shutdown()
+    # poll_scheduler.shutdown()
     await send_telegram("📴 直播監控已關閉")
 
 
@@ -256,8 +272,25 @@ app = FastAPI(lifespan=lifespan)
 async def youtube_verify(request: Request):
     params    = request.query_params
     challenge = params.get("hub.challenge", "")
-    print(f"[YouTube] WebSub 驗證：{params.get('hub.topic', '')}")
-    return Response(content=challenge, media_type="text/plain")
+    topic     = params.get("hub.topic", "")
+    
+    # 從 topic 中解析出 channel_id (通常在網址最後面)
+    channel_id = topic.split("channel_id=")[-1] if "channel_id=" in topic else "未知頻道"
+    
+    print(f"[YouTube] WebSub 驗證請求：{channel_id}")
+    
+    if challenge:
+        # --- 方案 B：反向推播通知 ---
+        # 這裡我們發送一個非同步任務來通知使用者驗證成功
+        asyncio.create_task(send_telegram(
+            f"✅ <b>YouTube 監控已生效</b>\n"
+            f"頻道 ID：<code>{channel_id}</code>\n"
+            f"Google 已完成 WebSub 驗證，現在開始會即時接收直播通知。"
+        ))
+        
+        return Response(content=challenge, media_type="text/plain")
+    
+    return Response(status_code=404)
 
 
 @app.post("/youtube/webhook")
@@ -341,6 +374,39 @@ async def status():
         "twitch":        channels["twitch"],
         "twitch_enabled": TWITCH_ENABLED,
         "pending":       list(PENDING_STREAMS.keys())
+    }
+
+
+
+@app.get("/debug/websub")
+async def debug_websub(channel_id: str = ""):
+    """診斷 WebSub 訂閱狀態"""
+    if not channel_id:
+        channels_info = {
+            "public_url": PUBLIC_URL,
+            "webhook_url": f"{PUBLIC_URL}/youtube/webhook",
+            "youtube_channels": YOUTUBE_CHANNELS,
+        }
+        return channels_info
+    topic    = f"https://www.youtube.com/xml/feeds/videos.xml?channel_id={channel_id}"
+    callback = f"{PUBLIC_URL}/youtube/webhook"
+    return {
+        "channel_id":   channel_id,
+        "topic":        topic,
+        "callback":     callback,
+        "public_url":   PUBLIC_URL,
+    }
+
+@app.get("/debug/subscribe_now")
+async def force_subscribe(channel_id: str):
+    if not channel_id:
+        return {"status": "error", "message": "Missing channel_id"}
+    
+    success = await subscribe_youtube_websub(channel_id)
+    return {
+        "status": "success" if success else "failed",
+        "channel_id": channel_id,
+        "callback_url": f"{PUBLIC_URL}/youtube/webhook"
     }
 
 

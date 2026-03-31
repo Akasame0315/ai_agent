@@ -8,7 +8,10 @@
 - 記錄已通知的直播（避免重複通知）
 """
 import json
+import logging
 import os
+import asyncio
+logger = logging.getLogger(__name__)
 
 from core.paths import STREAM_MONITOR_FILE as MONITOR_FILE
 
@@ -30,6 +33,27 @@ def _load() -> dict:
 def _save(config: dict):
     with open(MONITOR_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
+
+
+def trigger_subscribe(target_id: str):
+    """
+    發送同步請求給本機 Webhook Server 觸發訂閱
+    """
+    import httpx #type: ignore
+    try:
+        # 使用同步 Client，這在 Thread 裡是非常安全的
+        with httpx.Client() as client:
+            resp = client.get(
+                f"http://127.0.0.1:8000/debug/subscribe_now?channel_id={target_id}", 
+                timeout=10.0
+            )
+            result = resp.json()
+            if result.get("status") == "success":
+                logger.info(f"[YouTube] 已成功觸發 Webhook Server 訂閱請求：{target_id}")
+            else:
+                logger.error(f"[YouTube] Webhook Server 訂閱失敗：{result.get('message')}")
+    except Exception as e:
+        logger.error(f"[YouTube] 連動 Webhook Server 異常: {e}")
 
 
 def add_stream_channel(platform: str, channel: str) -> str:
@@ -66,6 +90,12 @@ def add_stream_channel(platform: str, channel: str) -> str:
 
     config[platform].append(target_id)
     _save(config)
+    
+    # --- 新增：通知 Webhook Server 立即訂閱 ---
+    if platform == "youtube":
+        import threading
+        threading.Thread(target=trigger_subscribe, args=(target_id,)).start()
+
     return f"✅ 已新增監控：{platform} / {display_name}（{target_id}）"
 
 
