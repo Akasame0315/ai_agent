@@ -8,6 +8,18 @@ echo [Setup] start install python...
 @REM winget install Python.Python.3.11 --silent --accept-source-agreements
 C:\ai_agent\python-3.13.12-amd64.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
 
+set "PY_DIR=C:\Program Files\Python313"
+set "PY_EXE=%PY_DIR%\python.exe"
+set "PYW_EXE=%PY_DIR%\pythonw.exe"
+set "PATH=%PATH%;%PY_DIR%\;%PY_DIR%\Scripts\"
+
+:: 防火牆設定：允許 Python 進出網路（Sandbox 內的 Python 執行檔路徑）echo [Setup] configuring firewall rules...
+netsh advfirewall firewall add rule name="Python_Main_In" dir=in action=allow program="%PY_EXE%" enable=yes >nul 2>&1
+netsh advfirewall firewall add rule name="Python_Main_Out" dir=out action=allow program="%PY_EXE%" enable=yes >nul 2>&1
+netsh advfirewall firewall add rule name="PythonW_Main_In" dir=in action=allow program="%PYW_EXE%" enable=yes >nul 2>&1
+netsh advfirewall firewall add rule name="PythonW_Main_Out" dir=out action=allow program="%PYW_EXE%" enable=yes >nul 2>&1
+timeout /t 3 >nul
+
 :: 等待 Python 安裝完成
 timeout /t 10 /nobreak
 set "PATH=%PATH%;C:\Program Files\Python313\;C:\Program Files\Python313\Scripts\"
@@ -28,6 +40,11 @@ cd /d C:\ai_agent
 echo [Setup] creating virtual environment...
 %PYTHON_EXE% -m venv venv
 call venv\Scripts\activate
+
+set "VENV_EXE=C:\ai_agent\venv\Scripts\python.exe"
+netsh advfirewall firewall add rule name="Python_Venv_In" dir=in action=allow program="%VENV_EXE%" enable=yes >nul 2>&1
+netsh advfirewall firewall add rule name="Python_Venv_Out" dir=out action=allow program="%VENV_EXE%" enable=yes >nul 2>&1
+timeout /t 3 >nul
 
 set CONTAINER_MODE=1
 set SANDBOX_MODE=1

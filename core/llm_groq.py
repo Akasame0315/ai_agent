@@ -30,9 +30,9 @@ def _safe_parse_args(arguments: str) -> dict:
 client = Groq(api_key=GROQ_API_KEY)
 
 MODELS = [
-    "moonshotai/kimi-k2-instruct",
     "llama-3.3-70b-versatile",
-    "llama-3.2-70b-versatile",
+    "openai/gpt-oss-120b", # 代替 kimi-k2-instruct
+    # "moonshotai/kimi-k2-instruct", # 已停用
     "llama-3.3-8b-versatile",
     "mixtral-8x7b-32768",
 ]
