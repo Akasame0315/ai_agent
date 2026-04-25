@@ -1,6 +1,6 @@
-# Claude Agent
+# V2 Agent
 
-Claude Agent 是一個以 **Telegram Bot** 為入口的個人 AI 助理專案。  
+V2 Agent 是一個以 **Telegram Bot** 為入口的個人 AI 助理專案。  
 整體設計採用分層架構，將對話入口、任務協調、技能模組、服務層與儲存層拆分，目標是從可用的對話型代理，逐步擴充成具備資訊查詢、系統操作、記憶能力與雲端整合的個人代理系統。
 
 目前專案已完成 **Phase 1：基礎對話主線**，可透過 Telegram 與 agent 對話，並經由 Planner 與 LLM Gateway 使用 **Groq / Ollama** 產生回覆。  
@@ -220,4 +220,4 @@ Reply to Telegram
 - 能記住重要資訊
 - 能串接外部服務
 
-隨著各 phase 完成，Claude Agent 會從「對話入口」逐步演進成真正可協作的個人 AI 助理。
+隨著各 phase 完成，V2 Agent 會從「對話入口」逐步演進成真正可協作的個人 AI 助理。
