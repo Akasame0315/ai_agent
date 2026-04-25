@@ -57,6 +57,34 @@ def parse_args():
     return parser.parse_args()
 
 
+def build_skills(cfg: dict) -> dict:
+    """
+    初始化所有啟用的 skill，回傳 {skill_name: skill_instance}。
+    各 skill 從對應的 cfg 區塊讀取設定。
+    """
+    from skills.info.weather import WeatherSkill
+    from skills.info.search import SearchSkill
+    from skills.info.system_info import SystemInfoSkill
+
+    agent_cfg  = cfg.get("agent", {})
+    search_cfg = cfg.get("search", {})
+
+    skills = {
+        "weather": WeatherSkill(config={
+            "default_city": agent_cfg.get("city", "Taipei"),
+        }),
+        "search": SearchSkill(config={
+            "provider":        search_cfg.get("provider", "duckduckgo"),
+            "serper_api_key":  search_cfg.get("serper_api_key", ""),
+            "max_results":     search_cfg.get("max_results", 5),
+        }),
+        "system_info": SystemInfoSkill(config={
+            "timezone": agent_cfg.get("timezone", "Asia/Taipei"),
+        }),
+    }
+    return skills
+
+
 def main():
     args = parse_args()
 
@@ -81,22 +109,29 @@ def main():
     from services.llm_gateway import LLMGateway
     from services.task_manager import TaskManager
 
-    llm = LLMGateway(cfg, debug=args.debug)
+    llm          = LLMGateway(cfg, debug=args.debug)
     task_manager = TaskManager()
-    planner = Planner(llm, cfg, debug=args.debug)
+    planner      = Planner(llm, cfg, debug=args.debug)
+
+    # Skill 初始化與注入
+    skills = build_skills(cfg)
+    planner.register_skills(skills)
+
     bot = TelegramBot(cfg, planner, task_manager)
 
     allowed = cfg["telegram"].get("allowed_user_ids", [])
     logger.info("設定載入完成")
-    logger.info("  LLM provider: %s", cfg["llm"]["default_provider"])
-    logger.info("  Groq model  : %s", cfg["llm"]["groq_model"])
-    logger.info("  Ollama model: %s", cfg["llm"]["ollama_model"])
+    logger.info("  LLM provider : %s", cfg["llm"]["default_provider"])
+    logger.info("  Groq model   : %s", cfg["llm"]["groq_model"])
+    logger.info("  Ollama model : %s", cfg["llm"]["ollama_model"])
+    logger.info("  Search       : %s", cfg.get("search", {}).get("provider", "duckduckgo"))
+    logger.info("  Skills       : %s", list(skills.keys()))
     if allowed:
-        logger.info("  Allowed IDs : %s", allowed)
+        logger.info("  Allowed IDs  : %s", allowed)
     else:
-        logger.info("  Allowed IDs : not configured")
+        logger.info("  Allowed IDs  : not configured")
     if args.debug:
-        logger.info("  Debug mode  : ON")
+        logger.info("  Debug mode   : ON")
     logger.info("  Press Ctrl+C to stop")
 
     bot.run(llm)

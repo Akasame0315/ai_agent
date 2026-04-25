@@ -56,7 +56,6 @@ class TelegramBot:
             .build()
         )
         self._register_handlers()
-
         logger.info("Telegram bot starting polling.")
         self._app.run_polling(
             allowed_updates=Update.ALL_TYPES,
@@ -67,12 +66,14 @@ class TelegramBot:
         if self._app is None:
             raise RuntimeError("Telegram application has not been created.")
 
-        self._app.add_handler(CommandHandler("start", self._cmd_start))
-        self._app.add_handler(CommandHandler("help", self._cmd_help))
-        self._app.add_handler(CommandHandler("new", self._cmd_new))
-        self._app.add_handler(CommandHandler("stop", self._cmd_stop))
-        self._app.add_handler(CommandHandler("resume", self._cmd_resume))
-        self._app.add_handler(CommandHandler("status", self._cmd_status))
+        self._app.add_handler(CommandHandler("start",   self._cmd_start))
+        self._app.add_handler(CommandHandler("help",    self._cmd_help))
+        self._app.add_handler(CommandHandler("new",     self._cmd_new))
+        self._app.add_handler(CommandHandler("stop",    self._cmd_stop))
+        self._app.add_handler(CommandHandler("resume",  self._cmd_resume))
+        self._app.add_handler(CommandHandler("status",  self._cmd_status))
+        self._app.add_handler(CommandHandler("confirm", self._cmd_confirm))
+        self._app.add_handler(CommandHandler("cancel",  self._cmd_cancel))
         self._app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._on_message)
         )
@@ -83,23 +84,27 @@ class TelegramBot:
             raise RuntimeError("LLM gateway was not assigned before startup.")
 
         await self._llm.start()
-        await app.bot.set_my_commands(
-            [
-                BotCommand("start", "顯示啟動訊息"),
-                BotCommand("help", "顯示可用指令"),
-                BotCommand("new", "清除對話記錄"),
-                BotCommand("stop", "停止目前任務"),
-                BotCommand("resume", "恢復處理訊息"),
-                BotCommand("status", "查看目前狀態"),
-            ]
-        )
+        await app.bot.set_my_commands([
+            BotCommand("start",   "顯示啟動訊息"),
+            BotCommand("help",    "顯示可用指令"),
+            BotCommand("new",     "清除對話記錄"),
+            BotCommand("stop",    "停止目前任務"),
+            BotCommand("resume",  "恢復處理訊息"),
+            BotCommand("status",  "查看目前狀態"),
+            BotCommand("confirm", "確認待執行的操作"),
+            BotCommand("cancel",  "取消待執行的操作"),
+        ])
         await self._send_startup_messages(app)
         logger.info("Telegram bot initialized successfully.")
+
+    # ------------------------------------------------------------------
+    # 身份工具
+    # ------------------------------------------------------------------
 
     def _get_identity(self) -> tuple[str, str]:
         agent_cfg = self.cfg.get("agent", {})
         assistant_name = agent_cfg.get("assistant_name") or "助理"
-        owner_name = agent_cfg.get("owner_name") or agent_cfg.get("name") or "你"
+        owner_name     = agent_cfg.get("owner_name") or "你"
         return assistant_name, owner_name
 
     def _build_start_text(self) -> str:
@@ -127,90 +132,91 @@ class TelegramBot:
                     user_id,
                 )
             except TelegramError as exc:
-                logger.error(
-                    "Failed to send startup message to user_id=%s: %s",
-                    user_id,
-                    exc,
-                )
+                logger.error("Failed to send startup message to user_id=%s: %s", user_id, exc)
+
+    # ------------------------------------------------------------------
+    # 指令處理
+    # ------------------------------------------------------------------
 
     async def _cmd_start(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._check_allowed(update):
             return
-
-        message = update.message
-        if message is None:
-            return
-        await message.reply_text(self._build_start_text())
+        if update.message:
+            await update.message.reply_text(self._build_start_text())
 
     async def _cmd_help(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._check_allowed(update):
             return
-
-        message = update.message
-        if message is None:
-            return
-        await message.reply_text(
-            "可用指令：\n"
-            "/new - 清除目前對話記錄\n"
-            "/stop - 停止目前執行中的任務\n"
-            "/resume - 恢復 agent 接收訊息\n"
-            "/status - 查看目前狀態"
-        )
+        if update.message:
+            await update.message.reply_text(
+                "可用指令：\n"
+                "/new     — 清除目前對話記錄\n"
+                "/stop    — 停止目前執行中的任務\n"
+                "/resume  — 恢復 agent 接收訊息\n"
+                "/status  — 查看目前狀態\n"
+                "/confirm — 確認待執行的操作\n"
+                "/cancel  — 取消待執行的操作"
+            )
 
     async def _cmd_new(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._check_allowed(update):
             return
-
-        message = update.message
-        if message is None:
-            return
-
-        user_id = update.effective_user.id
-        self.planner.clear_context(user_id)
-        await message.reply_text("已清除目前的對話記錄。")
+        if update.message:
+            user_id = update.effective_user.id
+            self.planner.clear_context(user_id)
+            await update.message.reply_text("已清除目前的對話記錄。")
 
     async def _cmd_stop(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._check_allowed(update):
             return
-
-        message = update.message
-        if message is None:
-            return
-
-        count = self.task_manager.emergency_stop()
-        await message.reply_text(
-            f"已停止 {count} 個進行中的任務。\n"
-            "輸入 /resume 可恢復處理新訊息。"
-        )
+        if update.message:
+            count = self.task_manager.emergency_stop()
+            await update.message.reply_text(
+                f"已停止 {count} 個進行中的任務。\n"
+                "輸入 /resume 可恢復處理新訊息。"
+            )
 
     async def _cmd_resume(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._check_allowed(update):
             return
-
-        message = update.message
-        if message is None:
-            return
-
-        self.task_manager.resume()
-        await message.reply_text("Agent 已恢復，可繼續接收訊息。")
+        if update.message:
+            self.task_manager.resume()
+            await update.message.reply_text("Agent 已恢復，可繼續接收訊息。")
 
     async def _cmd_status(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._check_allowed(update):
             return
+        if update.message:
+            stopped = self.task_manager.is_stopped
+            active  = self.task_manager.active_count()
+            names   = self.task_manager.active_names()
+            status  = "已停止" if stopped else "運行中"
+            lines   = [f"狀態：{status}", f"執行中任務數：{active}"]
+            if names:
+                lines.extend(f"  - {name}" for name in names)
+            await update.message.reply_text("\n".join(lines))
 
-        message = update.message
-        if message is None:
+    async def _cmd_confirm(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        if not self._check_allowed(update):
             return
+        if update.message:
+            user_id = update.effective_user.id
+            self.task_manager.create_task(
+                self._confirm_and_reply(update.message, user_id),
+                name=f"confirm_{user_id}",
+            )
 
-        stopped = self.task_manager.is_stopped
-        active = self.task_manager.active_count()
-        names = self.task_manager.active_names()
-        status = "已停止" if stopped else "運行中"
-        details = [f"狀態：{status}", f"執行中任務數：{active}"]
-        if names:
-            details.extend(f"- {name}" for name in names)
+    async def _cmd_cancel(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        if not self._check_allowed(update):
+            return
+        if update.message:
+            user_id = update.effective_user.id
+            reply = await self.planner.handle_cancel(user_id)
+            await update.message.reply_text(reply)
 
-        await message.reply_text("\n".join(details))
+    # ------------------------------------------------------------------
+    # 訊息處理
+    # ------------------------------------------------------------------
 
     async def _on_message(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._check_allowed(update):
@@ -224,9 +230,9 @@ class TelegramBot:
             await message.reply_text("Agent 目前已停止，請先輸入 /resume。")
             return
 
-        user_id = update.effective_user.id
+        user_id   = update.effective_user.id
         user_name = update.effective_user.first_name or str(user_id)
-        text = message.text.strip()
+        text      = message.text.strip()
         if not text:
             return
 
@@ -240,18 +246,33 @@ class TelegramBot:
             name=f"msg_{user_id}_{message.message_id}",
         )
 
+    # ------------------------------------------------------------------
+    # 非同步回覆工作
+    # ------------------------------------------------------------------
+
     async def _process_and_reply(self, message: Message, user_id: int, text: str):
         try:
             reply = await self.planner.process(user_id, text)
             await self._send_long_message(message, reply)
         except Exception as exc:
-            logger.error("Failed to process telegram message: %s", exc, exc_info=True)
+            logger.error("Failed to process message: %s", exc, exc_info=True)
             await message.reply_text(f"處理訊息時發生錯誤：{exc}")
+
+    async def _confirm_and_reply(self, message: Message, user_id: int):
+        try:
+            reply = await self.planner.handle_confirm(user_id)
+            await self._send_long_message(message, reply)
+        except Exception as exc:
+            logger.error("Failed to process /confirm: %s", exc, exc_info=True)
+            await message.reply_text(f"確認操作時發生錯誤：{exc}")
+
+    # ------------------------------------------------------------------
+    # 工具
+    # ------------------------------------------------------------------
 
     def _check_allowed(self, update: Update) -> bool:
         if not self._allowed_ids:
             return True
-
         user_id = update.effective_user.id
         if user_id not in self._allowed_ids:
             logger.warning("Rejected message from unauthorized user_id=%s", user_id)
@@ -272,7 +293,6 @@ class TelegramBot:
                 current = line
             else:
                 current += line
-
         if current:
             chunks.append(current)
 

@@ -11,6 +11,9 @@ httpx==0.27.2          # Ollama HTTP 客戶端
 python-dotenv==1.0.1
 pyyaml==6.0.2
 
+# 網頁搜尋功能
+duckduckgo-search
+
 # 後續 Phase 預留（先安裝好，不影響 Phase 1）
 # chromadb==0.5.23       # Phase 4 記憶系統
 # playwright==1.49.1     # Phase 3 瀏覽器
