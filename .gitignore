@@ -1,0 +1,36 @@
+# 設定檔
+.env
+*.yaml
+
+# Python 虛擬環境（各種命名習慣）
+.venv/
+venv/
+env/
+ENV/
+
+# Google OAuth 下載的憑證 JSON
+client_secret*.json
+credentials*.json
+token*.json
+google_token*/
+
+# Playwright 瀏覽器快取（Phase 3 之後會產生）
+.playwright/
+
+# 系統暫存
+*.log
+*.tmp
+*.bak
+__pycache__/
+*.pyc
+
+# ChromaDB 向量資料庫（Phase 4 之後）
+chroma_db/
+.chroma/
+
+# VS Code 個人設定（團隊用才 commit .vscode/）
+.vscode/settings.json
+.vscode/launch.json
+
+# ── Agent 產生的檔案 ──────────────────────────────────────────────────
+agent_files/
