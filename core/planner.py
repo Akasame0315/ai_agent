@@ -22,7 +22,7 @@ class ConversationContext:
 
     def add(self, role: str, content: str):
         self.history.append(Message(role=role, content=content))
-        # 超過上限時，保留 system 以外的最近 N 筆
+        # 超過上限時，保留最近 N 筆
         if len(self.history) > self.max_history:
             self.history = self.history[-self.max_history:]
 
@@ -41,9 +41,10 @@ class Planner:
       - 傳給 Router 路由到對應 Skill
     """
 
-    def __init__(self, llm: LLMGateway, cfg: dict):
+    def __init__(self, llm: LLMGateway, cfg: dict, debug: bool = False):
         self.llm = llm
         self.cfg = cfg
+        self.debug = debug
         self._contexts: dict[int, ConversationContext] = {}
 
     def _get_context(self, user_id: int) -> ConversationContext:
@@ -63,6 +64,12 @@ class Planner:
         """
         ctx = self._get_context(user_id)
         ctx.add("user", user_message)
+
+        if self.debug:
+            logger.info(
+                "[DEBUG] history 長度：%d 條（含本次 user message）",
+                len(ctx.history),
+            )
 
         try:
             response = await self.llm.chat(

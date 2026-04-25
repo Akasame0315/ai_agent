@@ -26,10 +26,11 @@ class LLMResponse:
 
 
 class LLMGateway:
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, debug: bool = False):
         self.root_cfg = cfg
         self.cfg = cfg["llm"]
         self.agent_cfg = cfg.get("agent", {})
+        self.debug = debug
         self._groq_client: AsyncGroq | None = None
         self._http_client: httpx.AsyncClient | None = None
 
@@ -55,6 +56,21 @@ class LLMGateway:
         if custom_prompt:
             prompt += f"\n{custom_prompt}"
         return prompt
+
+    def _log_prompt(self, system_prompt: str, messages: list[Message]):
+        """Debug 模式下印出 system prompt 與最後一條 user message"""
+        if not self.debug:
+            return
+
+        last_user = next(
+            (m.content for m in reversed(messages) if m.role == "user"),
+            "(無 user message)",
+        )
+
+        logger.info("=" * 50)
+        logger.info("[DEBUG] system prompt:\n%s", system_prompt)
+        logger.info("[DEBUG] last user message:\n%s", last_user)
+        logger.info("=" * 50)
 
     async def start(self):
         if self.cfg.get("groq_api_key"):
@@ -88,6 +104,8 @@ class LLMGateway:
             provider = "ollama"
 
         sys_prompt = system_prompt or self._build_system_prompt()
+
+        self._log_prompt(sys_prompt, messages)
 
         if provider == "groq":
             return await self._call_groq(messages, sys_prompt)

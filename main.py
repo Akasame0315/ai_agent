@@ -45,7 +45,21 @@ def setup_logging(cfg: dict):
         logging.getLogger(lib).setLevel(logging.WARNING)
 
 
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Personal Agent")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="啟用 debug 模式：印出 system prompt 與最後一條 user message",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+
     from config.loader import load_config
 
     try:
@@ -59,14 +73,17 @@ def main():
     logger.info("personal-agent 啟動中...")
     logger.info("=" * 60)
 
+    if args.debug:
+        logger.info("*** DEBUG 模式已啟用：將印出 LLM prompt 內容 ***")
+
     from core.planner import Planner
     from interface.telegram_bot import TelegramBot
     from services.llm_gateway import LLMGateway
     from services.task_manager import TaskManager
 
-    llm = LLMGateway(cfg)
+    llm = LLMGateway(cfg, debug=args.debug)
     task_manager = TaskManager()
-    planner = Planner(llm, cfg)
+    planner = Planner(llm, cfg, debug=args.debug)
     bot = TelegramBot(cfg, planner, task_manager)
 
     allowed = cfg["telegram"].get("allowed_user_ids", [])
@@ -78,6 +95,8 @@ def main():
         logger.info("  Allowed IDs : %s", allowed)
     else:
         logger.info("  Allowed IDs : not configured")
+    if args.debug:
+        logger.info("  Debug mode  : ON")
     logger.info("  Press Ctrl+C to stop")
 
     bot.run(llm)
