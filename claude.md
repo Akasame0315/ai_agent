@@ -1,320 +1,298 @@
-# Claude Agent v2 — 專案快速上手文件
+# Claude Agent v2 — 專案開發手冊 (2026-04-30)
 
-> 給新對話的 Claude 閱讀，快速理解專案架構與當前狀態，減少重複說明。
-
----
-
-## 專案定位
-
-以 **Telegram Bot** 為入口的個人 AI 助理框架。  
-使用者透過 Telegram 下指令，Agent 透過 **LLM Tool Call** 決定呼叫哪個技能、執行後將結果回送 LLM、最終輸出自然語言回覆。  
-設計參考 OpenClaw / Hermes Agent 的架構概念，溝通層完全走 LLM（不使用硬編碼 intent mapping）。
+> **致 LLM 協作者**：本文件定義了專案架構與開發規範。在開始任務前，請務必先理解「Skill 系統」與「安全原則」，以確保程式碼風格一致且符合非侵入式設計。
 
 ---
 
-## 技術棧
+## 1. 專案核心定位
 
-| 層級 | 技術 |
-|------|------|
-| 語言 | Python 3.11+ |
-| Telegram | python-telegram-bot v21+ |
-| LLM | Groq API（雲端）/ Ollama（本地） |
-| 搜尋 | DuckDuckGo（預設，無需 API key） |
-| 天氣 | Open-Meteo（免費，無需 API key） |
-| 向量記憶 | ChromaDB（Phase 4） |
-| 關聯式儲存 | SQLite（Phase 4） |
-| 瀏覽器自動化 | Playwright（Phase 6） |
-| 外部整合 | Gmail OAuth2（Phase 5） |
-| 開發環境 | VS Code |
+- **入口**：Telegram Bot（非同步 I/O 驅動）
+- **大腦**：LLM Tool Call Loop（取代硬編碼 Intent Mapping）
+- **核心架構**：非同步優先、插件化擴展
+- **設計哲學**：
+- **非侵入式**：嚴禁模擬鍵盤滑鼠，僅透過 API 或 Shell 執行任務
+- **隱私優先**：敏感指令自動路由至本地 Ollama 執行
+- **確認機制**：破壞性操作需要 /confirm，查詢類直接執行
 
 ---
 
-## 目錄結構
+## 2. 技術棧與環境
+
+- **語言**：Python 3.11+（asyncio 驅動）
+- **核心庫**：`python-telegram-bot` v21+、`groq`、`httpx`
+- **外部整合**：DuckDuckGo（搜尋）、Open-Meteo（天氣）、Playwright（瀏覽器）
+- **資料儲存**：SQLite（關聯式）、ChromaDB（向量記憶）
+- **設定管理**：`.env` 搭配 `config.py`（Dataclass Singleton）
+- **開發環境**：VS Code / Windows 11
+
+---
+
+## 3. 目錄結構
 
 ```
 .
-├── main.py                    # 入口，asyncio.run，支援 --debug / --cli
-├── config.py                  # 環境變數載入（.env → dataclass Config 單例）
-├── .env                       # API Keys（不 commit）
-├── .env.example               # .env 範本
-├── claude.md                  # 本文件
+├── main.py                       # 入口，asyncio.run，支援 --debug / --cli
+├── config.py                     # 環境變數載入（.env → dataclass Config 單例）
+├── .env                          # API Keys（不 commit）
+├── .env.example                  # .env 範本
+├── claude.md                     # 本文件
 │
 ├── interface/
-│   └── telegram_bot.py        # Telegram Bot（async run），含所有指令 handler
+│   └── telegram_bot.py           # Telegram Bot（async run），含所有指令 handler
 │
 ├── core/
-│   ├── planner.py             # Tool Call Loop（最多 5 輪），確認機制，對話上下文
-│   ├── router.py              # 敏感指令路由：偵測關鍵字 → 強制走 Ollama
-│   ├── security.py            # 危險 shell 指令黑名單、路徑穿越檢查
-│   └── emergency_stop.py      # 緊急停止旗標（threading.Event）
-│   └── skill_registry.py      # Auto-Discovery 插件系統
+│   ├── planner.py                # ✅ Tool Call Loop（最多 5 輪），確認機制，對話上下文
+│   ├── router.py                 # ✅ 敏感指令路由：偵測關鍵字 → 強制走 Ollama
+│   ├── confirm_policy.py         # ✅ 細粒度確認策略（哪些工具需要 /confirm）
+│   └── emergency_stop.py         # 緊急停止旗標（threading.Event）
+│   └── skill_registry.py         # ✅ Auto-Discovery 插件系統
 │
 ├── services/
-│   ├── llm_gateway.py         # 統一 LLM 呼叫：Groq / Ollama，格式轉換，retry
-│   └── task_manager.py        # asyncio 任務追蹤、緊急停止
+│   ├── llm_gateway.py            # ✅ 統一 LLM 呼叫：Groq / Ollama，格式轉換，retry
+│   └── task_manager.py           # ✅ asyncio 任務追蹤、緊急停止
 │
 ├── skills/
-│   ├── base.py                # Skill 抽象基底（含 requires_confirmation 旗標）
-│   ├── info/                  # 🔲 待實作
-│   │   ├── wmo_codes.py       # WMO 天氣代碼常數（中文）
-│   │   ├── weather.py         # 天氣查詢（Open-Meteo）
-│   │   ├── search.py          # 網路搜尋（DuckDuckGo）
-│   │   └── system_info.py     # 時間 / 系統資訊
-│   ├── file/                  # 🔲 待實作
-│   │   └── file_ops.py        # 讀寫 agent_files/（requires_confirmation=True）
-│   ├── system/                # 🔲 待實作
-│   │   ├── app_control.py     # 開啟/關閉應用程式（v1 移植）
-│   │   ├── volume.py          # 音量控制（v1 移植）
-│   │   └── shell_runner.py    # run_shell，含黑名單過濾（v1 移植）
-│   ├── browser/               # 🔲 待實作（Phase 6）
-│   │   └── playwright_ctrl.py # Playwright 瀏覽器自動化（Phase 6）
-│   ├── memory/                # 🔲 待實作（Phase 4）
-│   │   ├── short_term.py      # 對話摘要（Phase 4）
-│   │   └── long_term.py       # ChromaDB RAG（Phase 4）
-│   ├── gmail/                 # 🔲 待實作（Phase 5）
-│   │   └── gmail_skill.py     # Gmail OAuth2（Phase 5）
-│   ├── schedule/              # 🔲 待實作
-│   │   ├── reminder.py        # 一次性 + 循環提醒（v1 移植）
-│   │   └── heartbeat.py       # 早安/晚安定時推播（v1 移植）
-│   └── stream_monitor/        # 🔲 待實作（Phase 6）
-│       ├── monitor.py         # 監控清單管理（v1 移植）
-│       └── webhook_server.py  # YouTube WebSub Webhook（v1 移植）
-├── storage/
-│   ├── db.py                  # SQLite（Phase 4）
-│   └── vector_store.py        # ChromaDB 封裝（Phase 4）
+│   ├── base.py                   # ✅ Skill 抽象基底（requires_confirmation / privacy_level）
+│   │
+│   ├── info/                     # ✅ Phase 3 完成
+│   │   ├── manifest.json
+│   │   └── info.py               # 時間、系統資訊、天氣（Open-Meteo）、搜尋（DuckDuckGo）
+│   │
+│   ├── file/                     # ✅ Phase 3 完成
+│   │   ├── manifest.json
+│   │   └── file.py               # 讀寫 agent_files/（路徑穿越防護，寫入需確認）
+│   │
+│   ├── system/                   # ✅ Phase 3 完成
+│   │   ├── manifest.json
+│   │   └── system.py             # App 控制、音量調整、截圖、Shell Runner（黑名單過濾）
+│   │
+│   ├── browser/                  # 🔲 待實作（Phase 6）
+│   │   └── playwright_ctrl.py
+│   │
+│   ├── memory/                   # 🔲 待實作（Phase 4）
+│   │   ├── short_term.py
+│   │   └── long_term.py
+│   │
+│   ├── gmail/                    # 🔲 待實作（Phase 5）
+│   │   └── gmail_skill.py
+│   │
+│   ├── schedule/                 # 🔲 待實作
+│   │   ├── reminder.py
+│   │   └── heartbeat.py
+│   │
+│   └── stream_monitor/           # 🔲 待實作（Phase 6）
+│       ├── monitor.py
+│       └── webhook_server.py
 │
-├── agent_files/               # Agent 可讀寫的本地工作區
-└── logs/                      # 運行 log（每日輪替，保留 30 天）
+├── storage/
+│   ├── db.py                     # 🔲 SQLite（Phase 4）
+│   └── vector_store.py           # 🔲 ChromaDB 封裝（Phase 4）
+│
+├── agent_files/                  # Agent 可讀寫的本地工作區
+└── logs/                         # 運行 log（每日輪替，保留 30 天）
 ```
 
 ---
 
-## 分層架構
+## 4. 系統架構流
 
-```
-Telegram User
-    ↓
-interface/telegram_bot.py     ← 訊息/指令入口（async，不阻塞 event loop）
-    ↓
-core/router.py                ← 敏感偵測：決定 provider（groq / ollama）
-    ↓
-core/planner.py               ← Tool Call Loop（最多 5 輪），確認機制
-    ↓
-services/llm_gateway.py       ← 統一 LLM 呼叫，格式轉換，retry 邏輯
-    ↓
-skills/*                      ← 各功能技能（Auto-Discovery 插件）
-    ↓
-storage/（Phase 4）
-    ↓
-Reply to Telegram
+```mermaid
+graph TD
+    User(Telegram User) --> Bot[interface/telegram_bot.py]
+    Bot --> Router{core/router.py\n敏感偵測}
+    Router -- 敏感 --> Ollama[Local: Ollama]
+    Router -- 一般 --> Groq[Cloud: Groq]
+    Ollama & Groq --> Planner[core/planner.py\nTool Call Loop]
+    Planner --> Policy[core/confirm_policy.py\n確認策略]
+    Policy -- 需要確認 --> User
+    Policy -- 直接執行 --> Registry[core/skill_registry.py]
+    Registry --> Skills[skills/*\n具體執行單元]
 ```
 
 ---
 
-## 重要設計決策
+## 5. 開發規範（Critical）
 
-- **async-first**：所有 I/O 操作（LLM、HTTP、檔案）全走 async，TelegramBot.run() 也是 async，由 asyncio.run() 統一管理 event loop。
-- **不模擬鍵盤滑鼠**：所有系統操作走 subprocess / shell。
-- **Tool Call 取代 intent mapping**：技能路由完全由 LLM 決定。
-- **本地優先敏感資料**：敏感指令強制走 Ollama，不送雲端。
-- **OAuth 授權**：外部服務走 OAuth2，Agent 不直接持有帳密。
-- **requires_confirmation 旗標**：查詢類直接執行，寫入/系統操作需 /confirm。
-- **最大 tool call 輪數（5）**：防止無限迴圈。
-- **Config dataclass 單例**：`from config import cfg`，不直接讀 os.environ。
+- **Async-First**：所有 I/O（檔案、網路、LLM）必須使用 `async/await`
+- **不模擬鍵盤滑鼠**：系統操作走 subprocess / shell / API，禁用 pyautogui 輸入
+- **Tool Call 取代 intent mapping**：技能路由完全由 LLM 決定
+- **本地優先敏感資料**：`privacy_level="local_only"` 強制走 Ollama
+- **OAuth 授權**：Gmail 等外部服務走 OAuth2，Agent 不直接持有帳密
+- **確認機制**：由 `core/confirm_policy.py` 集中管理，不由 skill 類別決定
+  - 查詢類（get_weather、read_file、list_files 等）→ 直接執行
+  - 寫入/刪除/執行類 → 等 /confirm
+- **最大 tool call 輪數（5）**：防止無限迴圈
+- **Config 存取**：統一使用 `from config import cfg`
+- **路徑管理**：檔案讀寫限制在 `agent_files/`，需通過路徑穿越檢查
+- **Shell 黑名單**：`skills/system/system.py` 過濾危險指令
 
 ---
 
-## Skill 系統：模組化插件設計
+## 6. Skill 插件系統規範
 
-Skill 採用**自動探索（Auto-Discovery）**機制，類似 OpenClaw / Hermes 的插件概念。  
-新增或移除功能只需要操作 `skills/` 資料夾，不需要改動 `main.py`、Planner 或 LLMGateway。
-
-### Skill 資料夾結構
-
-每個 skill 是一個自包含的資料夾：
+Skill 採用**自動探索（Auto-Discovery）**機制，新增功能時在 `skills/` 下建立資料夾：
 
 ```
 skills/
-└── weather/
-    ├── manifest.json          # 必要：id, tools, privacy_level 等
-    └── weather.py             # 必要：繼承 Skill，export SKILL_CLASS
+└── my_skill/
+    ├── manifest.json    # 必要：id, tools, privacy_level 等
+    └── my_skill.py      # 必要：繼承 Skill，export SKILL_CLASS
 ```
 
 **`manifest.json` 格式：**
 ```json
 {
-  "id": "weather",
-  "name": "天氣查詢",
+  "id": "my_skill",
+  "name": "技能名稱",
   "version": "1.0.0",
-  "description": "查詢即時天氣與 3 日預報",
+  "description": "技能描述",
   "requires_confirmation": false,
   "privacy_level": "public",
-  "tools": ["get_weather"],
+  "tools": ["tool_a", "tool_b"],
   "enabled": true
 }
 ```
 
-**新增 Skill 步驟：**
-1. 在 `skills/` 建立新資料夾並放入 `manifest.json`
-2. 建立 `.py` 檔，繼承 `Skill`，實作 `execute()` 與 `get_schemas()`
-3. 重啟 Agent，SkillRegistry 自動掃描載入
-### 停用 Skill（不刪除）
+> **注意**：`requires_confirmation` 在 manifest 中只是文件說明用途。
+> 實際確認邏輯由 `core/confirm_policy.py` 的 `needs_confirmation()` 控制。
 
-在 `manifest.json` 加上 `"enabled": false`，Registry 載入時會跳過。
-
----
-
-## 安全設計原則
-
-1. **電腦控制**：不允許模擬鍵盤滑鼠，系統操作一律走 subprocess / shell。
-2. **檔案操作**：限制在 `agent_files/`，`core/security.py` 檢查路徑穿越。
-3. **隱私保護**：`core/router.py` 偵測敏感關鍵字，自動強制走 Ollama（本地）。
-4. **確認機制**：`requires_confirmation=True` 的 skill 暫停等待 `/confirm`。
-5. **外部授權**：Gmail 等外部服務走 OAuth2，Agent 不直接持有帳密。
-6. **緊急停止**：`/stop` 設定 `emergency_stop.Event`，取消所有背景任務。
-7. **Tool Call 安全**：LLM 只能呼叫已在 `register_tools()` 中明確註冊的工具。
-8. **Shell 黑名單**：`core/security.py` 過濾 `rm -rf /`、`format c:` 等危險指令。
+**`privacy_level` 說明：**
+| 值 | 說明 |
+|---|---|
+| `"public"` | 可走雲端 LLM（Groq），不含個資 |
+| `"local_only"` | 強制走本地 Ollama，含個資/帳密/信件 |
 
 ---
 
-## 設定檔說明
+## 7. 已實作工具清單（Phase 3）
 
-設定採用 **`.env` + `config.py`** 方式（不使用 yaml）。
+### InfoSkill（`skills/info/`）
+| 工具 | 說明 | 需確認 |
+|---|---|---|
+| `get_current_time` | 取得日期時間與星期 | ❌ |
+| `get_system_info` | OS / CPU / 記憶體 / 磁碟 | ❌ |
+| `get_weather` | Open-Meteo 天氣 + 3 日預報 | ❌ |
+| `web_search` | DuckDuckGo 搜尋（Instant Answer + HTML fallback） | ❌ |
 
-**`.env`**（不 commit，參考 `.env.example`）：
+### FileSkill（`skills/file/`）
+| 工具 | 說明 | 需確認 |
+|---|---|---|
+| `write_file` | 寫入 agent_files/（含路徑穿越防護） | ✅ |
+| `read_file` | 讀取 agent_files/ 內的檔案 | ❌ |
+| `list_files` | 列出 agent_files/ 所有檔案 | ❌ |
+| `delete_file` | 刪除 agent_files/ 內的檔案 | ✅ |
 
-```env
-# LLM 設定
-LLM_PROVIDER=auto              # auto | groq | ollama
-CLOUD_PROVIDER=groq            # auto 模式下非敏感指令使用的雲端 provider
-
-GROQ_API_KEY=...
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:14b
-
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_ALLOWED_USER_ID=...   # 你的 Telegram user ID，留空不限制
-
-YOUTUBE_API_KEY=...            # YouTube 頻道搜尋用（選填）
-NGROK_AUTHTOKEN=...            # Webhook server 公開 URL（選填）
-.
-.
-.
-```
-
-**`config.py`** 負責載入並提供全域設定物件，其他模組 `from config import cfg` 取用，不直接讀 `os.environ`。
----
-
-## 執行方式
-
-```bash
-# 安裝依賴
-pip install python-telegram-bot python-dotenv groq httpx
-
-# 啟動 Bot
-python main.py
-
-# Debug 模式
-python main.py --debug
-
-# 終端機測試（不需要 Telegram）
-python main.py --cli
-```
+### SystemSkill（`skills/system/`）
+| 工具 | 說明 | 需確認 |
+|---|---|---|
+| `open_application` | 開啟程式（Start Menu 模糊搜尋）或網址 | ✅ |
+| `close_application` | 關閉程式（taskkill） | ✅ |
+| `list_running_apps` | 列出執行中應用程式 | ❌ |
+| `set_volume` | 音量控制（pycaw / PowerShell / amixer） | ✅ |
+| `take_screenshot` | 截圖存到 agent_files/（mss / pyautogui） | ❌ |
+| `run_shell` | 執行 shell 指令（黑名單過濾，async subprocess） | ✅ |
 
 ---
 
-## 重要設計決策
+## 8. 當前進度與任務清單
 
-- **不模擬鍵盤滑鼠**：所有系統操作走 subprocess / shell。
-- **Tool Call 取代 intent mapping**：技能路由完全由 LLM 決定。
-- **本地優先敏感資料**：敏感指令強制走 Ollama，不送雲端。
-- **OAuth 授權**：外部服務走 OAuth2。
-- **Ollama 雙模式**：先嘗試原生 tool call，失敗時 fallback 到 JSON prompt 模式。
-- **Provider 抽象層**：LLMGateway 統一介面，切換 provider 只改 `.env`。
-- **requires_confirmation 旗標**：查詢類直接執行，寫入/系統操作需 `/confirm`。
-- **最大 tool call 輪數（5）**：防止無限迴圈。
+### ✅ 已完成（Core Framework）
+- [x] **LLM Gateway**：Groq / Ollama 雙模切換，JSON Fallback，retry 邏輯
+- [x] **Planner**：Tool Call Loop（最多 5 輪），確認機制，對話上下文管理
+- [x] **Confirm Policy**：細粒度確認策略，查詢類直接執行，寫入類需 /confirm
+- [x] **Skill Registry**：Auto-Discovery，manifest 驗證，工具名稱衝突偵測
+- [x] **Telegram Interface**：長訊息切割，async polling，指令 handler
+- [x] **Config 系統**：.env 載入，dataclass 單例，路徑自動定位
 
----
+### ✅ 已完成（Phase 3：系統技能）
+- [x] `skills/info`：時間、天氣（Open-Meteo）、搜尋（DuckDuckGo）、系統資訊
+- [x] `skills/file`：agent_files/ 讀寫刪除（路徑穿越防護）
+- [x] `skills/system`：App 控制（Start Menu 模糊搜尋）、音量調整（pycaw）、截圖（mss）、Shell（async + 黑名單）
 
-## 目前完成進度
+### 🔲 待處理任務
 
-### ✅ 核心框架（Phase 1 & 2）
+#### Phase 4：記憶與 RAG（建議下一步）
+- [ ] `skills/memory/short_term.py`：ContextCompressor（token 超限壓縮）
+- [ ] `skills/memory/long_term.py`：ChromaDB 向量記憶（從 v1 移植）
+- [ ] SQLite 對話持久化（`storage/db.py`）
 
-| 檔案 | 狀態 | 說明 |
-|------|------|------|
-| `config.py` | ✅ 完成 | dataclass 單例，`cloud_provider` 欄位正確分離 |
-| `services/llm_gateway.py` | ✅ 完成 | Groq + Ollama 統一層，retry，JSON fallback |
-| `services/task_manager.py` | ✅ 完成 | asyncio 任務追蹤，emergency_stop/resume |
-| `skills/base.py` | ✅ 完成 | Skill 抽象基底，`requires_confirmation`，`privacy_level` |
-| `core/skill_registry.py` | ✅ 完成 | Auto-Discovery 插件系統 |
-| `core/planner.py` | ✅ 完成 | Tool Call Loop + 確認機制，ConversationContext |
-| `core/router.py` | ✅ 完成 | 敏感關鍵字路由 |
-| `main.py` | ✅ 完成 | async 入口，CLI 模式，正確 event loop 管理 |
-| `interface/telegram_bot.py` | ✅ 完成 | async run()，指令 handler，長訊息切割 |
-
-### 🔧 已修正的 Bug（2026-04-30）
-
-| 問題 | 原因 | 修正 |
-|------|------|------|
-| `RuntimeError: This event loop is already running` | `telegram_bot.run()` 是同步的，內部呼叫 `run_polling()` 試圖建立新 event loop，與外層 `asyncio.run()` 衝突 | `run()` 改為 `async`，改用 `initialize()` + `start()` + `updater.start_polling()` + `updater.idle()` |
-| `LLMConfig` 有重複的 `provider` field | 複製貼上時把 `cloud_provider` 的 key 寫成 `provider` | 修正為 `cloud_provider: str` |
-| `cfg.get("agent", {})` AttributeError | `cfg` 是 dataclass，不是 dict | 改為 `cfg.agent.xxx` 直接存取 |
-| `cfg.llm.cloud_provider` AttributeError | `LLMConfig` 沒有 `cloud_provider` 欄位 | 補上 `cloud_provider` 欄位 |
-
-### 🔲 待實作（Phase 3+）
-
-#### Phase 3：系統技能移植（優先度高）
-從 v1 `tools/` 搬遷：
-
-| Skill | 來源（v1） | 說明 |
-|-------|-----------|------|
-| `skills/info/` | `tools/info.py` | 時間、天氣（Open-Meteo）、DuckDuckGo 搜尋 |
-| `skills/file/` | `tools/info.py` | agent_files/ 讀寫，requires_confirmation=True |
-| `skills/system/app_control` | `tools/apps.py` | Windows 模糊搜尋開啟程式 |
-| `skills/system/volume` | `tools/system.py` | pycaw 音量控制 |
-| `skills/system/shell_runner` | `tools/system.py` | run_shell + 黑名單 |
-
-每個 skill 需要：
-1. `skills/{name}/manifest.json`
-2. `skills/{name}/{name}.py`（繼承 Skill）
-
-#### Phase 4：記憶系統
-- ChromaDB RAG（從 v1 `core/memory.py` + `core/rag.py` 移植）
-- SQLite 對話歷史持久化
-- ContextCompressor（token 超限時壓縮 history）
-
-#### Phase 5：雲端整合
-- `skills/gmail/`：Gmail OAuth2 收發信 + AI 廣告過濾
-- `skills/schedule/reminder`：一次性 + 循環提醒
-- `skills/schedule/heartbeat`：早安/晚安定時推播
-- Google Calendar/Tasks 整合（排程同步）
+#### Phase 5：外部整合
+- [ ] `skills/gmail/`：Google OAuth2 串接（Gmail 收發信）
+- [ ] `skills/schedule/reminder.py`：一次性 + 循環提醒
+- [ ] `skills/schedule/heartbeat.py`：早安/晚安定時推播
 
 #### Phase 6：進階能力
-- `skills/browser/`：Playwright 瀏覽器自動化
-- `skills/stream_monitor/`：YouTube WebSub + Twitch EventSub 開播通知
+- [ ] `skills/browser/`：Playwright 瀏覽器自動化
+- [ ] `skills/stream_monitor/`：YouTube WebSub + Twitch EventSub 開播通知
 
 ---
 
-## 下一步建議
+## 9. 安裝依賴
 
-1. **建立第一個 skill**（驗證插件系統可用）：
-   ```
-   skills/info/
-   ├── manifest.json
-   └── info.py   ← get_current_time, get_weather, web_search
-   ```
+```bash
+# 核心（必裝）
+pip install python-telegram-bot httpx python-dotenv groq
 
-2. **測試 CLI 模式**確認 Planner + LLM Gateway 流程正常：
-   ```bash
-   python main.py --cli
-   ```
+# Phase 3 系統技能（建議安裝）
+pip install psutil          # CPU / 記憶體監控
+pip install mss             # 截圖（跨平台，推薦）
+pip install pycaw comtypes  # 音量控制（Windows 精確版）
 
-3. **逐步移植 Phase 3 skills**，每完成一個就測試一次
+# Phase 4（記憶系統）
+pip install chromadb
+
+# Phase 5（Gmail）
+pip install google-auth google-auth-oauthlib google-api-python-client
+
+# Phase 6（瀏覽器）
+pip install playwright
+playwright install chromium
+```
 
 ---
 
-## 已知限制
+## 10. 啟動指令
 
-- Skill 資料夾目前只有空目錄（沒有 manifest.json），啟動時會出現 ERROR log（不影響運行，只是警告）
+```bash
+python main.py              # Telegram Bot（預設）
+python main.py --debug      # Debug 模式（印出 LLM prompt 與 tool call）
+python main.py --cli        # 終端機測試（不需要 Telegram）
+```
+
+---
+
+## 11. Telegram 指令
+
+| 指令 | 說明 |
+|---|---|
+| `/start` | 顯示啟動訊息 |
+| `/help` | 顯示可用指令 |
+| `/new` | 清除對話記憶 |
+| `/stop` | 緊急停止所有任務 |
+| `/resume` | 恢復接收訊息 |
+| `/status` | 查看目前狀態 |
+| `/confirm` | 確認待執行的操作 |
+| `/cancel` | 取消待執行的操作 |
+
+---
+
+## 12. 隱私保護對照表
+
+| 指令類型 | 使用模型 |
+|---|---|
+| 天氣、搜尋、時間、系統資訊 | Groq（雲端） |
+| 檔案讀寫、App 控制、Shell | Ollama（本地）|
+| Gmail、信件 | Ollama（本地）|
+| 記憶、知識庫 | Ollama（本地）|
+| 帳密、登入 | Ollama（本地）|
+
+---
+
+## 13. 已知限制與注意事項
+
+- `skills/system/` 的音量控制在 Windows 優先用 pycaw，未安裝時 fallback 到 PowerShell（功能受限）
+- `take_screenshot` 優先用 mss，未安裝時嘗試 pyautogui（需要 display）
 - Ollama 需要本機先執行 `ollama serve`，gateway 會自動嘗試啟動但可能失敗
+- Shell 黑名單覆蓋常見危險指令，但不能保證 100% 安全，建議在沙盒環境使用
+- 目前 Skills 資料夾下沒有 `__init__.py`，skill module 以動態 import 方式載入
 - Twitch API key 尚未取得，stream_monitor 的 Twitch 功能暫時無法使用

@@ -1,0 +1,10 @@
+{
+  "id": "info",
+  "name": "資訊查詢",
+  "version": "1.0.0",
+  "description": "取得目前時間, 系統資訊（OS、CPU、記憶體、磁碟）, 即時天氣 + 3 日預報（Open-Meteo，免費無需 API key）, DuckDuckGo 搜尋（Instant Answer API + HTML fallback）",
+  "requires_confirmation": false,
+  "privacy_level": "public",
+  "tools": ["get_current_time", "get_system_info", "get_weather", "web_search"],
+  "enabled": true
+}

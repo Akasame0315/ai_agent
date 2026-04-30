@@ -1,0 +1,10 @@
+{
+  "id": "file",
+  "name": "檔案操作",
+  "version": "1.0.0",
+  "description": "檔案的建立、讀取、寫入和刪除等操作",
+  "requires_confirmation": true,
+  "privacy_level": "public",
+  "tools": ["create_file", "read_file", "write_file", "delete_file"],
+  "enabled": true
+}

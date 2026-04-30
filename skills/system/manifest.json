@@ -1,0 +1,10 @@
+{
+  "id": "system",
+  "name": "系統資訊",
+  "version": "1.0.0",
+  "description": "提供系統相關資訊的技能，包括當前時間、系統狀態、天氣資訊和網路搜尋功能。",
+  "requires_confirmation": true,
+  "privacy_level": "public",
+  "tools": ["open_application", "close_application", "list_running_apps", "set_volume", "take_screenshot", "run_shell"],
+  "enabled": true
+}

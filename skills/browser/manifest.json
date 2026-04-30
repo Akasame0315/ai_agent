@@ -1,0 +1,10 @@
+{
+  "id": "my_skill",
+  "name": "技能名稱",
+  "version": "1.0.0",
+  "description": "技能描述",
+  "requires_confirmation": false,
+  "privacy_level": "public",
+  "tools": ["tool_a", "tool_b"],
+  "enabled": true
+}
